@@ -1,0 +1,20 @@
+# 依赖与构建产物
+node_modules/
+dist/
+
+# 运行时生成文件
+data/save.json
+scripts/core_test.mjs
+scripts/shots/
+
+# 本机 Codex 沙箱配置（含绝对路径，不入库）
+.codex/
+
+# 系统与编辑器文件
+.DS_Store
+Thumbs.db
+*.local
+
+# 环境变量（预留）
+.env
+.env.*

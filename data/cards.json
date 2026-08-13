@@ -1,0 +1,113 @@
+{
+  "bash": {
+    "id": "bash",
+    "name": "痛击",
+    "type": "attack",
+    "cost": 2,
+    "rarity": "starter",
+    "target": "enemy",
+    "description": "造成 8 点伤害，施加 2 层易伤。",
+    "effects": [
+      {
+        "op": "damage",
+        "amount": 8
+      },
+      {
+        "op": "apply",
+        "status": "vulnerable",
+        "amount": 2,
+        "target": "enemy"
+      }
+    ],
+    "art": "🔨",
+    "color": "#8a4ab0",
+    "upgrade": {
+      "cost": 2,
+      "effects": [
+        {
+          "op": "damage",
+          "amount": 12
+        },
+        {
+          "op": "apply",
+          "status": "vulnerable",
+          "amount": 2,
+          "target": "enemy"
+        }
+      ],
+      "description": "造成 12 点伤害，施加 2 层易伤。"
+    }
+  },
+  "sacrifice": {
+    "id": "sacrifice",
+    "name": "血祭",
+    "type": "skill",
+    "cost": 0,
+    "rarity": "uncommon",
+    "target": "self",
+    "description": "失去 3 点生命，抽 2 张牌，获得 2 点能量。",
+    "effects": [
+      {
+        "op": "loseHp",
+        "amount": 3
+      },
+      {
+        "op": "draw",
+        "amount": 2
+      },
+      {
+        "op": "energy",
+        "amount": 2
+      }
+    ],
+    "art": "🩸",
+    "color": "#b03030",
+    "upgrade": {
+      "description": "失去 3 点生命，抽 3 张牌，获得 3 点能量。",
+      "effects": [
+        {
+          "op": "loseHp",
+          "amount": 3
+        },
+        {
+          "op": "draw",
+          "amount": 3
+        },
+        {
+          "op": "energy",
+          "amount": 3
+        }
+      ]
+    },
+    "exhaust": true
+  },
+  "thousand_cuts": {
+    "id": "thousand_cuts",
+    "name": "千刀万剐",
+    "type": "attack",
+    "cost": 2,
+    "rarity": "rare",
+    "target": "enemy",
+    "description": "造成 3 点伤害 5 次。",
+    "effects": [
+      {
+        "op": "damage",
+        "amount": 3,
+        "hits": 5
+      }
+    ],
+    "art": "🗡️",
+    "color": "#b03050",
+    "upgrade": {
+      "description": "造成 3 点伤害 6 次。",
+      "effects": [
+        {
+          "op": "damage",
+          "amount": 3,
+          "hits": 6
+        }
+      ]
+    }
+  },
+  "armor_shock": null
+}

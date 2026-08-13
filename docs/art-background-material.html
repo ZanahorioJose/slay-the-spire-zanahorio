@@ -1,0 +1,332 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>背景材质展示 · 三层纵深场景（纯前端）</title>
+<style>
+  :root {
+    --bg-0: #0d1017;
+    --bg-1: #14171f;
+    --panel-2: #1d2330;
+    --border: #2b3245;
+    --gold: #f0d98a;
+    --gold-deep: #b8953a;
+    --gold-bright: #ffe9b0;
+    --silver: #9aa3b5;
+    --text: #e8e6e3;
+    --text-dim: #8f99ad;
+    --text-faint: #566070;
+    --art-scale: 1;
+    --art-x: 0px;
+    --art-y: 0px;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: radial-gradient(ellipse at 50% 0%, #1a2130 0%, var(--bg-0) 70%);
+    color: var(--text);
+    font-family: "PingFang SC", "Microsoft YaHei", sans-serif;
+    padding: 36px 32px 70px;
+    min-height: 100vh;
+  }
+  h1 { font-size: 24px; letter-spacing: 2px; color: var(--gold); }
+  h1 small { font-size: 13px; color: var(--text-dim); letter-spacing: 0; margin-left: 10px; }
+  .sub { color: var(--text-dim); font-size: 13px; margin-top: 10px; line-height: 1.8; max-width: 980px; }
+  h2 { font-size: 15px; margin: 20px 0 12px; color: var(--gold); letter-spacing: 1px; }
+  .hero-row { display: flex; gap: 30px; align-items: flex-start; flex-wrap: wrap; margin-top: 26px; }
+
+  /* ---------- 三层背景舞台 ---------- */
+  .bg-stage {
+    position: relative;
+    width: 560px;
+    height: 320px;
+    border-radius: 16px;
+    overflow: hidden;
+    border: 1px solid var(--border);
+    box-shadow: 0 18px 44px rgba(0,0,0,0.55);
+  }
+  .bg-far { position: absolute; inset: 0; }
+  .bg-mid {
+    position: absolute;
+    left: 0; right: 0; bottom: 0;
+    height: 62%;
+    overflow: hidden;
+  }
+  .bg-mid img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    transform: translate(var(--art-x, 0px), var(--art-y, 0px)) scale(var(--art-scale, 1));
+  }
+  .bg-near {
+    position: absolute;
+    inset: 0;
+    box-shadow: inset 0 -30px 52px rgba(0,0,0,0.78), inset 0 14px 36px rgba(0,0,0,0.55);
+    pointer-events: none;
+  }
+  .bg-label {
+    position: absolute;
+    bottom: 10px; left: 14px;
+    font-size: 13px;
+    letter-spacing: 1px;
+    color: rgba(255,255,255,0.85);
+    text-shadow: 0 1px 3px rgba(0,0,0,0.9);
+    z-index: 2;
+    background: rgba(0,0,0,0.35);
+    padding: 3px 9px;
+    border-radius: 6px;
+  }
+
+  /* ---------- 场景主题 ---------- */
+  .bg-stage.act1 .bg-far {
+    background: linear-gradient(180deg, #3a4656 0%, #232b38 55%, #141820 100%);
+  }
+  .bg-stage.act1 .bg-mid {
+    background: radial-gradient(ellipse at 50% 20%, #2e3947 0%, #1c222e 70%);
+    box-shadow: 0 0 40px rgba(56,70,92,0.5);
+  }
+  .bg-stage.act2 .bg-far {
+    background: linear-gradient(180deg, #27382e 0%, #1a241e 55%, #10150f 100%);
+  }
+  .bg-stage.act2 .bg-mid {
+    background: radial-gradient(ellipse at 50% 20%, #24402c 0%, #152216 70%);
+    box-shadow: 0 0 40px rgba(48,92,64,0.45);
+  }
+  .bg-stage.act3 .bg-far {
+    background: linear-gradient(180deg, #4a241f 0%, #2c1412 55%, #160a09 100%);
+  }
+  .bg-stage.act3 .bg-mid {
+    background: radial-gradient(ellipse at 50% 20%, #5a2a1e 0%, #301310 70%);
+    box-shadow: 0 0 46px rgba(224,106,90,0.35);
+    animation: lava-glow 3s ease-in-out infinite alternate;
+  }
+  .bg-stage.nebula .bg-far {
+    background:
+      radial-gradient(circle 1.5px at 18% 28%, rgba(255,255,255,0.9), transparent 2px),
+      radial-gradient(circle 1px at 42% 52%, rgba(255,255,255,0.8), transparent 1.5px),
+      radial-gradient(circle 1.5px at 68% 22%, rgba(255,255,255,0.7), transparent 2px),
+      radial-gradient(circle 1px at 84% 68%, rgba(255,255,255,0.8), transparent 1.5px),
+      radial-gradient(circle 1px at 56% 82%, rgba(255,255,255,0.7), transparent 1.5px),
+      linear-gradient(180deg, #241d45 0%, #171235 60%, #0d0b1c 100%);
+  }
+  .bg-stage.nebula .bg-mid {
+    background:
+      radial-gradient(ellipse 65% 45% at 28% 35%, rgba(120,90,200,0.45), transparent 65%),
+      radial-gradient(ellipse 55% 40% at 74% 60%, rgba(60,140,190,0.4), transparent 65%),
+      radial-gradient(ellipse 45% 35% at 50% 85%, rgba(200,120,180,0.3), transparent 65%),
+      #171235;
+    animation: nebula-glow 8s ease-in-out infinite alternate;
+  }
+  .bg-stage.marble .bg-far {
+    background: linear-gradient(180deg, #e8e4da 0%, #b8b0a0 55%, #7d7668 100%);
+  }
+  .bg-stage.marble .bg-mid {
+    background:
+      radial-gradient(ellipse 60% 40% at 25% 30%, rgba(255,255,255,0.5), transparent 60%),
+      radial-gradient(ellipse 50% 60% at 75% 65%, rgba(90,85,75,0.25), transparent 65%),
+      radial-gradient(ellipse 70% 50% at 45% 80%, rgba(180,170,150,0.5), transparent 70%),
+      linear-gradient(160deg, #cfc7b8 0%, #a89f8e 70%, #8a8172 100%);
+  }
+  .bg-stage.marble .bg-label { color: #3d362d; background: rgba(255,255,255,0.5); text-shadow: none; }
+
+  @keyframes lava-glow {
+    from { filter: brightness(1); }
+    to { filter: brightness(1.28); }
+  }
+  @keyframes nebula-glow {
+    from { filter: brightness(0.9) saturate(1); }
+    to { filter: brightness(1.2) saturate(1.25); }
+  }
+
+  /* ---------- 控制区 ---------- */
+  .controls { width: 300px; }
+  .art-picker { display: flex; gap: 8px; margin-bottom: 4px; }
+  .art-picker .mat-btn { flex: 1; }
+  .mat-btn {
+    font-family: inherit; font-size: 12px; cursor: pointer;
+    padding: 7px 13px; border-radius: 7px;
+    color: var(--text-dim);
+    background: var(--panel-2);
+    border: 1px solid var(--border);
+    transition: all 0.12s ease;
+  }
+  .mat-btn:hover { color: var(--text); border-color: var(--silver); }
+  .mat-btn.active {
+    color: #1b160a; font-weight: bold;
+    background: linear-gradient(180deg, var(--gold-bright), var(--gold) 45%, var(--gold-deep));
+    border-color: var(--gold-bright);
+  }
+  .theme-btns { display: flex; flex-wrap: wrap; gap: 8px; }
+  .controls label {
+    display: flex; align-items: center; justify-content: space-between;
+    gap: 12px; font-size: 12px; color: var(--text-dim); margin-bottom: 9px;
+  }
+  .controls input[type="range"] { flex: 1; accent-color: var(--gold); }
+  .controls label span.val { width: 52px; text-align: right; color: var(--gold); font-size: 11px; }
+  #resetArtPosBtn { width: 100%; margin-top: 2px; }
+  .hint { font-size: 11px; color: var(--text-faint); line-height: 1.7; margin-top: 4px; }
+
+  /* ---------- 主题参考条 ---------- */
+  .ref-strip { margin-top: 44px; }
+  .strip-row { display: flex; gap: 14px; flex-wrap: wrap; margin-top: 4px; }
+  .mini { position: relative; cursor: pointer; }
+  .mini .bg-stage { width: 200px; height: 112px; border-radius: 10px; }
+  .mini .bg-label { font-size: 10px; bottom: 6px; left: 8px; }
+  .mini:hover .bg-stage { border-color: var(--gold-deep); box-shadow: 0 0 14px rgba(240,217,138,0.3); }
+
+  footer { margin-top: 44px; font-size: 12px; color: var(--text-faint); line-height: 1.8; }
+  footer a { color: #8ab4f8; text-decoration: none; }
+
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { animation: none !important; transition: none !important; }
+  }
+</style>
+</head>
+<body>
+
+  <h1>背景材质展示<small>三层纵深场景 · 纯 HTML + CSS + JS</small></h1>
+  <p class="sub">
+    远景（雾/剪影）→ 中景（场景地面）→ 近景（暗角）三层叠加营造纵深。
+    中景可以换成电脑上的实际图片测试；场景主题用 CSS 渐变/光晕模拟，楼层换主题时改一处 class 即可。
+  </p>
+
+  <div class="hero-row">
+    <div class="bg-stage act1" id="bgStage">
+      <div class="bg-far"></div>
+      <div class="bg-mid" id="bgMid"></div>
+      <div class="bg-near"></div>
+      <span class="bg-label" id="bgLabel">第 1 层 · 冷灰地牢</span>
+    </div>
+
+    <div class="controls">
+      <h2>0 · 中景素材</h2>
+      <div class="art-picker">
+        <button class="mat-btn" id="pickImageBtn">选择本地图片</button>
+        <button class="mat-btn" id="resetArtBtn">恢复场景占位</button>
+      </div>
+      <label>缩放 <input type="range" id="artScale" min="0.25" max="4" step="0.05" value="1"><span class="val" id="artScaleVal">100%</span></label>
+      <label>X 轴 <input type="range" id="artX" min="-160" max="160" step="1" value="0"><span class="val" id="artXVal">0px</span></label>
+      <label>Y 轴 <input type="range" id="artY" min="-100" max="100" step="1" value="0"><span class="val" id="artYVal">0px</span></label>
+      <button class="mat-btn" id="resetArtPosBtn">重置缩放 / 位置</button>
+      <p class="hint" id="artStatus">当前中景：CSS 场景占位</p>
+      <input type="file" id="imageInput" accept="image/*" hidden />
+
+      <h2>1 · 场景主题</h2>
+      <div class="theme-btns" id="themeBtns">
+        <button class="mat-btn active" data-theme="act1">地牢</button>
+        <button class="mat-btn" data-theme="act2">沼泽</button>
+        <button class="mat-btn" data-theme="act3">熔岩</button>
+        <button class="mat-btn" data-theme="nebula">星云</button>
+        <button class="mat-btn" data-theme="marble">大理石</button>
+      </div>
+      <p class="hint">换主题只切 .bg-stage 上的 class；熔岩与星云带慢速光晕动画。</p>
+    </div>
+  </div>
+
+  <section class="ref-strip">
+    <h2>2 · 主题参考条</h2>
+    <p class="sub">点任意小场景，把它切到主舞台；也可再叠加本地图片做中景。</p>
+    <div class="strip-row" id="stripRow"></div>
+  </section>
+
+  <footer>
+    规范见 <a href="./art-style.md">docs/art-style.md</a>（背景分层见 §5），
+    素材目录：<code>assets/backgrounds/</code>（未来实际背景分层素材）。
+  </footer>
+
+<script>
+  // ================= 场景主题 =================
+  const THEMES = {
+    act1: "第 1 层 · 冷灰地牢",
+    act2: "第 2 层 · 暗绿沼泽",
+    act3: "第 3 层 · 红黑熔岩",
+    nebula: "隐藏层 · 星云",
+    marble: "隐藏层 · 大理石",
+  };
+  const bgStage = document.getElementById("bgStage");
+  const bgMid = document.getElementById("bgMid");
+  const bgLabel = document.getElementById("bgLabel");
+  let currentTheme = "act1";
+
+  function applyTheme(name) {
+    currentTheme = name;
+    bgStage.className = "bg-stage " + name;
+    bgLabel.textContent = THEMES[name];
+    clearMidImage();
+    document.querySelectorAll("#themeBtns .mat-btn").forEach((b) => {
+      b.classList.toggle("active", b.dataset.theme === name);
+    });
+  }
+  function clearMidImage() {
+    bgMid.innerHTML = "";
+    resetArtTransform();
+    artStatusEl.textContent = "当前中景：CSS 场景占位";
+  }
+  document.querySelectorAll("#themeBtns .mat-btn").forEach((btn) => {
+    btn.addEventListener("click", () => applyTheme(btn.dataset.theme));
+  });
+
+  // ================= 中景素材（本地图片） =================
+  const imageInput = document.getElementById("imageInput");
+  const artStatusEl = document.getElementById("artStatus");
+  const artScale = document.getElementById("artScale");
+  const artX = document.getElementById("artX");
+  const artY = document.getElementById("artY");
+  let lastObjectUrl = "";
+
+  function setArtTransform() {
+    bgMid.style.setProperty("--art-scale", artScale.value);
+    bgMid.style.setProperty("--art-x", artX.value + "px");
+    bgMid.style.setProperty("--art-y", artY.value + "px");
+    document.getElementById("artScaleVal").textContent = Math.round(artScale.value * 100) + "%";
+    document.getElementById("artXVal").textContent = artX.value + "px";
+    document.getElementById("artYVal").textContent = artY.value + "px";
+  }
+  function resetArtTransform() {
+    artScale.value = "1";
+    artX.value = "0";
+    artY.value = "0";
+    setArtTransform();
+  }
+  artScale.addEventListener("input", setArtTransform);
+  artX.addEventListener("input", setArtTransform);
+  artY.addEventListener("input", setArtTransform);
+  document.getElementById("resetArtPosBtn").addEventListener("click", resetArtTransform);
+
+  document.getElementById("pickImageBtn").addEventListener("click", () => imageInput.click());
+  imageInput.addEventListener("change", () => {
+    const file = imageInput.files && imageInput.files[0];
+    if (!file) return;
+    if (lastObjectUrl) URL.revokeObjectURL(lastObjectUrl);
+    lastObjectUrl = URL.createObjectURL(file);
+    bgMid.innerHTML = "";
+    const img = document.createElement("img");
+    img.src = lastObjectUrl;
+    img.alt = "中景素材";
+    bgMid.appendChild(img);
+    resetArtTransform();
+    artStatusEl.textContent = "当前中景：本地图片 " + file.name;
+  });
+  document.getElementById("resetArtBtn").addEventListener("click", () => {
+    clearMidImage();
+    imageInput.value = "";
+  });
+
+  // ================= 主题参考条 =================
+  const stripRow = document.getElementById("stripRow");
+  for (const [name, label] of Object.entries(THEMES)) {
+    const wrap = document.createElement("div");
+    wrap.className = "mini";
+    wrap.innerHTML =
+      '<div class="bg-stage ' + name + '">' +
+      '<div class="bg-far"></div><div class="bg-mid"></div><div class="bg-near"></div>' +
+      '<span class="bg-label">' + label + '</span></div>';
+    wrap.addEventListener("click", () => applyTheme(name));
+    stripRow.appendChild(wrap);
+  }
+
+  resetArtTransform();
+</script>
+</body>
+</html>
