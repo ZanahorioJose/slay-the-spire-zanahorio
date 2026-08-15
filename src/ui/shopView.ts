@@ -1,14 +1,17 @@
 import { Game, inPool } from "../core/game";
-import type { CardData, RelicData } from "../core/types";
+import type { CardData, PotionData, RelicData } from "../core/types";
 import { clear, el, button } from "./dom";
 import { renderCard } from "./cardView";
 import { shuffle } from "../core/rng";
+import { showConfirm } from "./modal";
+import { attachTooltip } from "./tooltip";
 
 interface ShopItem {
-  type: "card" | "relic" | "remove" | "empty";
+  type: "card" | "relic" | "potion" | "remove" | "empty";
   price: number;
   card?: CardData;
   relic?: RelicData;
+  potion?: PotionData;
 }
 
 export function renderShop(
@@ -41,6 +44,12 @@ export function renderShop(
           el("div", "shop-item-name", item.relic.name),
           el("div", "shop-item-desc", item.relic.description)
         );
+      } else if (item.type === "potion" && item.potion) {
+        info.append(
+          el("div", "shop-relic-art", item.potion.art ?? "🧪"),
+          el("div", "shop-item-name", item.potion.name),
+          el("div", "shop-item-desc", item.potion.description)
+        );
       } else if (item.type === "remove") {
         info.append(
           el("div", "shop-relic-art", "🗑️"),
@@ -48,6 +57,17 @@ export function renderShop(
           el("div", "shop-item-desc", "从你的牌组中移除一张牌")
         );
       }
+      const tooltipText =
+        item.type === "card" && item.card
+          ? `${item.card.name}：${item.card.description}`
+          : item.type === "relic" && item.relic
+            ? `${item.relic.name}：${item.relic.description}`
+            : item.type === "potion" && item.potion
+              ? `${item.potion.name}：${item.potion.description}`
+              : item.type === "remove"
+                ? "从牌组中移除一张牌（按实例选择）"
+                : "";
+      attachTooltip(info, tooltipText);
       const buyBtn = button(
         `${item.price} 金币`,
         () => {
@@ -65,6 +85,10 @@ export function renderShop(
             item.price = 75;
             item.card = undefined;
             item.relic = undefined;
+          } else if (item.type === "potion" && item.potion) {
+            game.addPotion(item.potion.id);
+            item.type = "empty";
+            item.potion = undefined;
           } else if (item.type === "remove") {
             showRemoveModal(game, () => {
               item.type = "empty";
@@ -92,15 +116,23 @@ export function renderShop(
 }
 
 function buildShopItems(game: Game): ShopItem[] {
+  const characterId = game.run.player.character;
   const shopCards = Object.values(game.db.cards).filter(
-    (c) => c.rarity !== "starter" && inPool(c, "shop")
+    (c) =>
+      c.rarity !== "starter" &&
+      (!c.character || c.character === characterId) &&
+      inPool(c, "shop")
   );
   // If every card is restricted to other pools, fall back to all non-starter
   // cards so the shop never ends up empty.
   const cardPool =
     shopCards.length > 0
       ? shopCards
-      : Object.values(game.db.cards).filter((c) => c.rarity !== "starter");
+      : Object.values(game.db.cards).filter(
+          (c) =>
+            c.rarity !== "starter" &&
+            (!c.character || c.character === characterId)
+        );
   const cards = shuffle(cardPool).slice(0, 3);
 
   const shopRelics = Object.values(game.db.relics).filter((r) =>
@@ -111,6 +143,7 @@ function buildShopItems(game: Game): ShopItem[] {
       ? shopRelics
       : Object.values(game.db.relics);
   const relics = shuffle(relicPool).slice(0, 2);
+  const potions = shuffle(Object.values(game.db.potions)).slice(0, 1);
   return [
     ...cards.map((card) => ({
       type: "card" as const,
@@ -121,6 +154,11 @@ function buildShopItems(game: Game): ShopItem[] {
       type: "relic" as const,
       price: 150,
       relic,
+    })),
+    ...potions.map((potion) => ({
+      type: "potion" as const,
+      price: 120,
+      potion,
     })),
     { type: "remove" as const, price: 75 },
   ];
@@ -138,16 +176,14 @@ function showRemoveModal(game: Game, onDone: () => void): void {
       renderCard(card, {
         small: true,
         onClick: () => {
-          if (
-            !window.confirm(
-              `确定移除第 ${index + 1} 张「${card.name}」？移除后无法找回。`
-            )
-          ) {
-            return;
-          }
-          game.removeCardAt(index);
-          overlay.remove();
-          onDone();
+          showConfirm(
+            `确定移除第 ${index + 1} 张「${card.name}」？移除后无法找回。`,
+            () => {
+              game.removeCardAt(index);
+              overlay.remove();
+              onDone();
+            }
+          );
         },
       })
     );

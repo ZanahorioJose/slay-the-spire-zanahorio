@@ -13,6 +13,7 @@ import { renderRest } from "./ui/restView";
 import { renderTreasure } from "./ui/treasureView";
 import { renderEditor } from "./ui/editorView";
 import { renderTestRoom } from "./ui/testRoomView";
+import { showAlert } from "./ui/modal";
 import type { EventData } from "./core/types";
 import {
   bindDataDirectory,
@@ -76,7 +77,7 @@ function route(): void {
   }
   if (view === "menu" || !game) {
     renderMenu(app, db, {
-      onStart: () => void startGame(),
+      onStart: (characterId: string) => void startGame(characterId),
       onEditor: openEditor,
       onContinue: continueSummary ? () => void continueGame() : undefined,
       onBindDirectory: supportsDirectoryPicker()
@@ -166,9 +167,11 @@ function quitToMenu(): void {
   void returnToMenu();
 }
 
-async function startGame(): Promise<void> {
+async function startGame(characterId: string): Promise<void> {
   db = await loadDatabaseAsync();
-  game = new Game(db, loadRunSettings());
+  const settings = loadRunSettings();
+  settings.characterId = characterId;
+  game = new Game(db, settings);
   view = "game";
   await saveGameData(game.settings, game.run);
   continueSummary = null;
@@ -188,7 +191,7 @@ async function bindDirectory(): Promise<void> {
   const result = await bindDataDirectory();
   await refreshMenuInfo();
   route();
-  window.alert(result.message);
+  showAlert(result.message);
 }
 
 function openEditor(): void {

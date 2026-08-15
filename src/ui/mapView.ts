@@ -3,6 +3,7 @@ import { Game } from "../core/game";
 import { MAP_ROWS, COLS, describeNodeType, reachableNodes } from "../core/map";
 import { el, button } from "./dom";
 import { showCardListOverlay, showRelicOverlay } from "./deckViewer";
+import { showConfirm } from "./modal";
 
 const NODE_ART: Record<MapNodeType, string> = {
   ancient: "🧭",
@@ -33,9 +34,10 @@ export function renderMap(
   if (onQuit) {
     header.appendChild(
       button("退出", () => {
-        if (window.confirm("返回主菜单？进度已自动保存，可随时「继续上次」。")) {
-          onQuit();
-        }
+        showConfirm(
+          "返回主菜单？进度已自动保存，可随时「继续上次」。",
+          onQuit
+        );
       }, "btn btn-mini quit-btn")
     );
   }

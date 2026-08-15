@@ -1,5 +1,6 @@
 import { Game } from "../src/core/game";
 import { buildDatabase } from "../src/data";
+import { PASSIVE_CARD_FIXES } from "../src/data/passive_card_fixes";
 
 function playOneRun(runId: number): void {
   const db = buildDatabase();
@@ -99,6 +100,7 @@ for (let i = 0; i < 5; i++) {
   const game = new Game(db);
   const entry = game.run.map.find((n) => n.row === 0);
   if (!entry) throw new Error("no entry node");
+  game.run.player.deck = ["strike"];
   const combat = game.startCombat(entry, ["slime"]);
   if (!combat) throw new Error("no combat");
   combat.player.hp = 1;
@@ -346,7 +348,8 @@ for (let i = 0; i < 5; i++) {
   const entry = game.run.map.find((n) => n.row === 0);
   if (!entry) throw new Error("no entry node");
   game.run.player.deck = ["strike"];
-  game.run.player.relics.push("victoryHeal");
+  // 覆盖角色默认遗物，只保留测试遗物，避免燃烧之血叠加治疗。
+  game.run.player.relics = ["victoryHeal"];
   const combat = game.startCombat(entry, ["testEnemy"]);
   if (!combat) throw new Error("no combat");
   combat.player.hp = 1;
@@ -454,12 +457,15 @@ for (let i = 0; i < 5; i++) {
   }
 
   // Enemy turn 2: old block is cleared before it attacks.
+  const hpBeforeHit = combat.player.hp;
   combat.endPlayerTurn();
   if (enemy.block !== 0) {
     throw new Error(`enemy block should reset before acting, got ${enemy.block}`);
   }
-  if (combat.player.hp !== 65) {
-    throw new Error(`player should take 5 damage, hp=${combat.player.hp}`);
+  if (combat.player.hp !== hpBeforeHit - 5) {
+    throw new Error(
+      `player should take 5 damage, hp=${combat.player.hp} before=${hpBeforeHit}`
+    );
   }
   console.log("enemy block absorb (ok)");
 }
@@ -513,13 +519,12 @@ for (let i = 0; i < 5; i++) {
 
 // Relic pools: a relic restricted to "shop" never drops from elite rewards.
 {
+  const baseRelicNulls = Object.fromEntries(
+    Object.keys(buildDatabase().relics).map((id) => [id, null])
+  );
   const db = buildDatabase({
     relics: {
-      jade_pendant: null,
-      tactical_manual: null,
-      thorn_armor: null,
-      war_drum: null,
-      blood_vial: null,
+      ...baseRelicNulls,
       shopOnly: {
         id: "shopOnly",
         name: "商店限定",
@@ -552,29 +557,12 @@ for (let i = 0; i < 5; i++) {
 
 // Card pools: a card restricted to "shop" never appears in card rewards.
 {
+  const baseCardNulls = Object.fromEntries(
+    Object.keys(buildDatabase().cards).map((id) => [id, null])
+  );
   const db = buildDatabase({
     cards: {
-      strike: null,
-      defend: null,
-      bash: null,
-      heavy_blow: null,
-      twin_strike: null,
-      cleave: null,
-      poison_stab: null,
-      flying_knee: null,
-      iron_wall: null,
-      battle_cry: null,
-      dodge: null,
-      weaken: null,
-      uppercut: null,
-      flame_barrier: null,
-      entrench: null,
-      sacrifice: null,
-      limit_break: null,
-      metallicize_card: null,
-      ritual_card: null,
-      thousand_cuts: null,
-      corpse_explosion: null,
+      ...baseCardNulls,
       shopCard: {
         id: "shopCard",
         name: "商店牌",
@@ -731,6 +719,863 @@ for (let i = 0; i < 5; i++) {
     throw new Error("relic version tag should survive the pipeline");
   }
   console.log("version tag pipeline (ok)");
+}
+
+// Thorns: a player with thorns reflects damage back onto attacking enemies;
+// an enemy with thorns damages the player when attacked.
+{
+  const db = buildDatabase({
+    cards: {
+      strike: {
+        id: "strike",
+        name: "打击",
+        type: "attack",
+        cost: 1,
+        rarity: "starter",
+        target: "enemy",
+        description: "造成 6 点伤害。",
+        effects: [{ op: "damage", amount: 6 }],
+      },
+      defend: {
+        id: "defend",
+        name: "防御",
+        type: "skill",
+        cost: 1,
+        rarity: "starter",
+        target: "self",
+        description: "获得 5 点格挡。",
+        effects: [{ op: "block", amount: 5 }],
+      },
+    },
+    enemies: {
+      thornGuy: {
+        id: "thornGuy",
+        name: "荆棘怪",
+        maxHp: 40,
+        pattern: "loop",
+        moves: [{ name: "攻击", type: "attack", damage: 7 }],
+      },
+    },
+  });
+  const game = new Game(db);
+  const entry = game.run.map.find((n) => n.row === 0);
+  if (!entry) throw new Error("no entry node");
+  game.run.player.deck = ["strike", "strike", "strike", "defend"];
+  const combat = game.startCombat(entry, ["thornGuy"]);
+  const enemy = combat.enemies[0];
+
+  // Player casts thorns, then the enemy attacks: the enemy must take the
+  // reflected damage (player thorns, not enemy thorns).
+  combat.player.statuses.thorns = 3;
+  combat.endPlayerTurn();
+  if (enemy.hp !== 37) {
+    throw new Error(
+      `enemy should take 3 thorns damage, hp=${enemy.hp} log=${combat.log.slice(-3).join(" | ")}`
+    );
+  }
+
+  // Enemy with thorns: player's strike reflects damage back onto the player.
+  enemy.statuses.thorns = 4;
+  const playerHpBefore = combat.player.hp;
+  const uid = combat.player.hand.find((c) => combat.getCardId(c) === "strike");
+  if (!uid) throw new Error("no strike in hand");
+  combat.playCard(uid);
+  if (combat.player.hp !== playerHpBefore - 4) {
+    throw new Error(
+      `player should take 4 thorns damage, hp=${combat.player.hp}`
+    );
+  }
+  console.log("thorns reflection both ways (ok)");
+}
+
+// Characters: starting HP/deck/relics come from the chosen character, and
+// card rewards never offer cards belonging to another character.
+{
+  const db = buildDatabase();
+  const game = new Game(db, { characterId: "silent" });
+  if (game.run.player.hp !== 70 || game.run.player.character !== "silent") {
+    throw new Error(
+      `silent should start with 70 hp, hp=${game.run.player.hp} char=${game.run.player.character}`
+    );
+  }
+  if (!game.run.player.relics.includes("ring_of_the_snake")) {
+    throw new Error("silent should start with ring_of_the_snake");
+  }
+  if (
+    !game.run.player.deck.includes("neutralize") ||
+    !game.run.player.deck.includes("survivor")
+  ) {
+    throw new Error("silent should start with neutralize and survivor");
+  }
+
+  const warrior = new Game(db, { characterId: "warrior" });
+  for (let i = 0; i < 40; i++) {
+    for (const card of warrior.rollCardReward("normal")) {
+      if (card.character === "silent" || card.character === "defect") {
+        throw new Error(
+          `warrior reward must not contain other characters' cards: ${card.id}`
+        );
+      }
+    }
+  }
+  console.log("character start & reward filter (ok)");
+}
+
+// cardExhausted relic: exhausting a card (or playing a power) triggers it.
+{
+  const db = buildDatabase({
+    cards: {
+      exhaustTest: {
+        id: "exhaustTest",
+        name: "消耗测试",
+        type: "skill",
+        cost: 0,
+        rarity: "common",
+        target: "self",
+        description: "",
+        effects: [],
+        exhaust: true,
+      },
+    },
+    relics: {
+      ember: {
+        id: "ember",
+        name: "余烬",
+        description: "",
+        trigger: "cardExhausted",
+        effects: [{ op: "block", amount: 1 }],
+      },
+    },
+    enemies: {
+      testEnemy: {
+        id: "testEnemy",
+        name: "测试怪",
+        maxHp: 30,
+        pattern: "loop",
+        moves: [{ name: "待机", type: "special" }],
+      },
+    },
+  });
+  const game = new Game(db);
+  const entry = game.run.map.find((n) => n.row === 0);
+  if (!entry) throw new Error("no entry node");
+  game.run.player.deck = ["exhaustTest"];
+  game.run.player.relics.push("ember");
+  const combat = game.startCombat(entry, ["testEnemy"]);
+  const uid = combat.player.hand.find((c) => combat.getCardId(c) === "exhaustTest");
+  if (!uid) throw new Error("no exhaustTest in hand");
+  combat.playCard(uid);
+  if (combat.player.block !== 1 || combat.player.exhaustPile.length !== 1) {
+    throw new Error(
+      `cardExhausted relic should give 1 block: block=${combat.player.block}`
+    );
+  }
+  console.log("cardExhausted relic (ok)");
+}
+
+// receiveDamage relic: taking actual HP damage triggers it (thorns
+// reflection during the player's turn keeps the gained block alive).
+{
+  const db = buildDatabase({
+    cards: {
+      strike: {
+        id: "strike",
+        name: "打击",
+        type: "attack",
+        cost: 1,
+        rarity: "starter",
+        target: "enemy",
+        description: "造成 6 点伤害。",
+        effects: [{ op: "damage", amount: 6 }],
+      },
+    },
+    relics: {
+      plating: {
+        id: "plating",
+        name: "反应装甲",
+        description: "",
+        trigger: "receiveDamage",
+        effects: [{ op: "block", amount: 1 }],
+      },
+    },
+    enemies: {
+      puncher: {
+        id: "puncher",
+        name: "拳击手",
+        maxHp: 30,
+        pattern: "loop",
+        moves: [{ name: "待机", type: "special" }],
+      },
+    },
+  });
+  const game = new Game(db);
+  const entry = game.run.map.find((n) => n.row === 0);
+  if (!entry) throw new Error("no entry node");
+  game.run.player.deck = ["strike"];
+  game.run.player.relics.push("plating");
+  const combat = game.startCombat(entry, ["puncher"]);
+  combat.enemies[0].statuses.thorns = 4;
+  const hpBefore = combat.player.hp;
+  const uid = combat.player.hand.find((c) => combat.getCardId(c) === "strike");
+  if (!uid) throw new Error("no strike in hand");
+  combat.playCard(uid);
+  if (combat.player.hp !== hpBefore - 4 || combat.player.block !== 1) {
+    throw new Error(
+      `receiveDamage relic should trigger on hit: hp=${combat.player.hp} block=${combat.player.block}`
+    );
+  }
+  console.log("receiveDamage relic (ok)");
+}
+
+// Stars: divine_right grants 3 stars at combat start; star-cost cards gate.
+{
+  const db = buildDatabase();
+  const game = new Game(db, { characterId: "regent" });
+  const entry = game.run.map.find((n) => n.row === 0);
+  if (!entry) throw new Error("no entry node");
+  game.run.player.deck = ["strike"];
+  const combat = game.startCombat(entry, ["slime"]);
+  if (combat.player.stars !== 3) {
+    throw new Error(`regent should start combat with 3 stars, got ${combat.player.stars}`);
+  }
+  if (!combat.canPlay("seven_stars")) {
+    throw new Error("seven_stars should be playable with 3 stars");
+  }
+  combat.player.stars = 2;
+  if (combat.canPlay("seven_stars")) {
+    throw new Error("seven_stars must require 3 stars");
+  }
+  console.log("stars resource (ok)");
+}
+
+// Souls: necrobinder cards gain souls; soul-cost cards gate on souls.
+{
+  const db = buildDatabase();
+  const game = new Game(db, { characterId: "necrobinder" });
+  const entry = game.run.map.find((n) => n.row === 0);
+  if (!entry) throw new Error("no entry node");
+  game.run.player.deck = ["bodyguard"];
+  const combat = game.startCombat(entry, ["slime"]);
+  const uid = combat.player.hand.find((c) => combat.getCardId(c) === "bodyguard");
+  if (!uid) throw new Error("no bodyguard in hand");
+  combat.playCard(uid);
+  if (combat.player.souls !== 1) {
+    throw new Error(`bodyguard should grant 1 soul, got ${combat.player.souls}`);
+  }
+  if (combat.canPlay("soul_storm")) {
+    throw new Error("soul_storm must require 3 souls");
+  }
+  console.log("souls resource (ok)");
+}
+
+// Orbs: cracked core channels lightning at combat start; zap adds a second
+// orb; passive lightning fires each turn; dualcast evokes the leftmost orb.
+{
+  const db = buildDatabase();
+  const game = new Game(db, { characterId: "defect" });
+  const entry = game.run.map.find((n) => n.row === 0);
+  if (!entry) throw new Error("no entry node");
+  game.run.player.deck = ["zap", "dualcast"];
+  const combat = game.startCombat(entry, ["slime"]);
+  const enemy = combat.enemies[0];
+  // Turn 1 passive already fired during start: enemy took 3.
+  if (enemy.hp !== 15 || combat.player.orbs.length !== 1) {
+    throw new Error(
+      `cracked core should channel 1 orb and deal 3: hp=${enemy.hp} orbs=${combat.player.orbs.length}`
+    );
+  }
+  const zapUid = combat.player.hand.find((c) => combat.getCardId(c) === "zap");
+  if (!zapUid) throw new Error("no zap in hand");
+  combat.playCard(zapUid);
+  if (combat.player.orbs.length !== 2) {
+    throw new Error(`zap should channel a second orb, got ${combat.player.orbs.length}`);
+  }
+  const dualUid = combat.player.hand.find((c) => combat.getCardId(c) === "dualcast");
+  if (!dualUid) throw new Error("no dualcast in hand");
+  const hpBeforeEvoke = enemy.hp;
+  combat.playCard(dualUid);
+  if (combat.player.orbs.length !== 1 || enemy.hp >= hpBeforeEvoke) {
+    throw new Error(
+      `dualcast should evoke an orb: orbs=${combat.player.orbs.length} hp=${enemy.hp}`
+    );
+  }
+  console.log("orb channel / passive / evoke (ok)");
+}
+
+// Summon: bound phylactery summons Osty; it attacks each turn and blocks
+// enemy damage until destroyed.
+{
+  const db = buildDatabase({
+    enemies: {
+      puncher: {
+        id: "puncher",
+        name: "拳击手",
+        maxHp: 40,
+        pattern: "loop",
+        moves: [{ name: "攻击", type: "attack", damage: 7 }],
+      },
+    },
+  });
+  const game = new Game(db, { characterId: "necrobinder" });
+  const entry = game.run.map.find((n) => n.row === 0);
+  if (!entry) throw new Error("no entry node");
+  const combat = game.startCombat(entry, ["puncher"]);
+  const summon = combat.player.summon;
+  if (!summon || summon.name !== "骷髅护卫") {
+    throw new Error("bound phylactery should summon Osty");
+  }
+  const enemy = combat.enemies[0];
+  // startCombat 内已经过第 1 回合开始：召唤物攻击了敌人。
+  if (enemy.hp !== 37) {
+    throw new Error("summon should attack for 3 at turn start");
+  }
+  const hpPlayerBefore = combat.player.hp;
+  combat.endPlayerTurn();
+  // Enemy attack of 7 hits the 3 HP summon; player takes 4.
+  if (combat.player.hp !== hpPlayerBefore - 4) {
+    throw new Error(
+      `summon should absorb 3 damage: player took ${hpPlayerBefore - combat.player.hp}`
+    );
+  }
+  console.log("summon attack & block (ok)");
+}
+
+// Doom: an enemy reaching 10 doom is executed at the start of its turn.
+{
+  const db = buildDatabase({
+    enemies: {
+      doomed: {
+        id: "doomed",
+        name: "受诅者",
+        maxHp: 50,
+        pattern: "loop",
+        moves: [{ name: "攻击", type: "attack", damage: 5 }],
+      },
+    },
+  });
+  const game = new Game(db);
+  const entry = game.run.map.find((n) => n.row === 0);
+  if (!entry) throw new Error("no entry node");
+  const combat = game.startCombat(entry, ["doomed"]);
+  const enemy = combat.enemies[0];
+  combat.applyEffect(
+    { op: "apply", status: "doom", amount: 10, target: "enemy" },
+    enemy.id
+  );
+  combat.endPlayerTurn();
+  if (enemy.hp !== 0 || !combat.log.some((l) => l.includes("灾厄处决"))) {
+    throw new Error(
+      `doom 10 should execute the enemy: hp=${enemy.hp} log=${combat.log.slice(-4).join(" | ")}`
+    );
+  }
+  console.log("doom execute (ok)");
+}
+
+// Potions: usePotion applies effects; the bag caps at 3.
+{
+  const db = buildDatabase();
+  const game = new Game(db);
+  const entry = game.run.map.find((n) => n.row === 0);
+  if (!entry) throw new Error("no entry node");
+  const combat = game.startCombat(entry, ["slime"]);
+  combat.player.hp = 50;
+  if (!combat.usePotion("blood_potion")) {
+    throw new Error("blood_potion should be usable");
+  }
+  if (combat.player.hp !== 60) {
+    throw new Error(`blood potion should heal 10, hp=${combat.player.hp}`);
+  }
+  game.run.player.potions = ["fire_potion", "blood_potion"];
+  game.addPotion("energy_potion");
+  game.addPotion("draw_potion");
+  if (game.run.player.potions.length !== 3) {
+    throw new Error("potion bag should cap at 3");
+  }
+  console.log("potion use & bag cap (ok)");
+}
+
+// retrieveFromExhaust: exhaust-interaction cards can pull cards back from
+// the exhaust pile, but power cards live in the removed pile and stay out.
+{
+  const db = buildDatabase({
+    cards: {
+      exhaustTest: {
+        id: "exhaustTest",
+        name: "消耗测试",
+        type: "skill",
+        cost: 0,
+        rarity: "common",
+        target: "self",
+        description: "",
+        effects: [],
+        exhaust: true,
+      },
+      powerTest: {
+        id: "powerTest",
+        name: "能力测试",
+        type: "power",
+        cost: 0,
+        rarity: "rare",
+        target: "self",
+        description: "",
+        effects: [],
+      },
+    },
+    enemies: {
+      testEnemy: {
+        id: "testEnemy",
+        name: "测试怪",
+        maxHp: 30,
+        pattern: "loop",
+        moves: [{ name: "待机", type: "special" }],
+      },
+    },
+  });
+  const game = new Game(db);
+  const entry = game.run.map.find((n) => n.row === 0);
+  if (!entry) throw new Error("no entry node");
+  game.run.player.deck = ["exhaustTest", "powerTest"];
+  const combat = game.startCombat(entry, ["testEnemy"]);
+  const exhaustUid = combat.player.hand.find(
+    (c) => combat.getCardId(c) === "exhaustTest"
+  );
+  const powerUid = combat.player.hand.find(
+    (c) => combat.getCardId(c) === "powerTest"
+  );
+  if (!exhaustUid || !powerUid) throw new Error("cards missing from hand");
+  combat.playCard(exhaustUid);
+  combat.playCard(powerUid);
+  if (combat.player.exhaustPile.length !== 1 || combat.player.removedPile.length !== 1) {
+    throw new Error("exhaust and removed piles should each hold one card");
+  }
+  combat.applyEffect({ op: "retrieveFromExhaust", amount: 1 });
+  if (combat.player.exhaustPile.length !== 0 || !combat.player.hand.includes(exhaustUid)) {
+    throw new Error("retrieve should pull the exhausted card back into hand");
+  }
+  if (combat.player.removedPile.length !== 1) {
+    throw new Error("power card must stay in the removed pile");
+  }
+  console.log("retrieve from exhaust (ok)");
+}
+
+// STS2 全卡池完整性：数量充足、效果操作符合法、addCard 引用存在。
+{
+  const db = buildDatabase();
+  const baseCount = Object.values(db.cards).filter(
+    (c) => !c.id.endsWith("+")
+  ).length;
+  if (baseCount < 400) {
+    throw new Error(`STS2 pool should exceed 400 base cards, got ${baseCount}`);
+  }
+  const validOps = new Set([
+    "damage",
+    "block",
+    "apply",
+    "multiplyStatus",
+    "draw",
+    "energy",
+    "heal",
+    "loseHp",
+    "damageAll",
+    "addCard",
+    "exhaustRandom",
+    "gainGold",
+    "gainStars",
+    "gainSouls",
+    "channel",
+    "evoke",
+    "focus",
+    "summon",
+    "healSummon",
+    "retrieveFromExhaust",
+    "discard",
+    "forge",
+    "addCountdown",
+    "passive",
+    "retrieveFromDiscard",
+    "addRandomCard",
+    "transformCard",
+    "playTopCard",
+    "orbSlots",
+  ]);
+  for (const card of Object.values(db.cards)) {
+    const allEffects = [...card.effects, ...(card.upgrade?.effects ?? [])];
+    for (const effect of allEffects) {
+      if (!validOps.has(effect.op)) {
+        throw new Error(`bad effect op "${effect.op}" on ${card.id}`);
+      }
+      if (effect.op === "addCard" && !db.cards[effect.cardId]) {
+        throw new Error(
+          `addCard references missing card ${effect.cardId} on ${card.id}`
+        );
+      }
+    }
+  }
+  console.log("STS2 pool integrity (ok)");
+}
+
+// 计数器（延迟效果）：下回合 / X 回合后结算。
+{
+  const db = buildDatabase({
+    enemies: {
+      testEnemy: {
+        id: "testEnemy",
+        name: "测试怪",
+        maxHp: 40,
+        pattern: "loop",
+        moves: [{ name: "待机", type: "special" }],
+      },
+    },
+  });
+  const game = new Game(db);
+  const entry = game.run.map.find((n) => n.row === 0);
+  if (!entry) throw new Error("no entry node");
+  game.run.player.deck = ["strike"];
+  const combat = game.startCombat(entry, ["testEnemy"]);
+  const enemy = combat.enemies[0];
+  combat.applyEffect({
+    op: "addCountdown",
+    turns: 1,
+    label: "炸弹引爆",
+    icon: "⏳",
+    effects: [{ op: "damageAll", amount: 10 }],
+    target: "enemies",
+  });
+  const hpBefore = enemy.hp;
+  combat.endPlayerTurn();
+  // 结束回合 → 敌人回合 → 下一回合开始结算倒计时。
+  if (enemy.hp !== hpBefore - 10) {
+    throw new Error(
+      `countdown should deal 10 on next turn: hp=${enemy.hp} before=${hpBefore}`
+    );
+  }
+  if (combat.player.pending.length !== 0) {
+    throw new Error("countdown should be consumed after resolving");
+  }
+  console.log("countdown delayed effect (ok)");
+}
+
+// 锻造：升级手牌中随机一张（战斗实例）。
+{
+  const db = buildDatabase();
+  const game = new Game(db);
+  const entry = game.run.map.find((n) => n.row === 0);
+  if (!entry) throw new Error("no entry node");
+  game.run.player.deck = ["strike"];
+  const combat = game.startCombat(entry, ["slime"]);
+  const uid = combat.player.hand.find((c) => combat.getCardId(c) === "strike");
+  if (!uid) throw new Error("no strike in hand");
+  combat.applyEffect({ op: "forge", amount: 1 });
+  if (combat.getCardId(uid) !== "strike+") {
+    throw new Error("forge should upgrade the strike instance in hand");
+  }
+  console.log("forge upgrade (ok)");
+}
+
+// 弃牌与奇巧（Sly）：弃置手牌触发被弃牌的奇巧效果。
+{
+  const db = buildDatabase({
+    cards: {
+      slyCard: {
+        id: "slyCard",
+        name: "奇巧卡",
+        type: "skill",
+        cost: 0,
+        rarity: "common",
+        target: "self",
+        description: "",
+        effects: [],
+        sly: [{ op: "draw", amount: 1 }],
+      },
+      discarder: {
+        id: "discarder",
+        name: "弃牌手",
+        type: "skill",
+        cost: 0,
+        rarity: "common",
+        target: "self",
+        description: "弃置 1 张手牌。",
+        effects: [{ op: "discard", amount: 1 }],
+      },
+    },
+    enemies: {
+      testEnemy: {
+        id: "testEnemy",
+        name: "测试怪",
+        maxHp: 30,
+        pattern: "loop",
+        moves: [{ name: "待机", type: "special" }],
+      },
+    },
+  });
+  const game = new Game(db);
+  const entry = game.run.map.find((n) => n.row === 0);
+  if (!entry) throw new Error("no entry node");
+  // 手牌只有一张奇巧卡，弃置必然触发奇巧。
+  game.run.player.deck = ["slyCard"];
+  const combat = game.startCombat(entry, ["testEnemy"]);
+  if (combat.player.hand.length !== 1) throw new Error("expected 1 card in hand");
+  combat.applyEffect({ op: "discard", amount: 1 });
+  // 弃置触发奇巧抽 1 → 手牌仍为 1 张。
+  if (combat.player.hand.length !== 1) {
+    throw new Error(
+      `sly draw should offset the discard: hand=${combat.player.hand.length}`
+    );
+  }
+  if (
+    !combat.log.some((l) => l.includes("奇巧")) &&
+    !combat.log.some((l) => l.includes("sly"))
+  ) {
+    throw new Error("sly trigger should be logged");
+  }
+  console.log("discard & sly trigger (ok)");
+}
+
+// 条件增伤：每张消耗堆牌 +N 伤害。
+{
+  const db = buildDatabase({
+    cards: {
+      ashen: {
+        id: "ashen",
+        name: "灰烬",
+        type: "attack",
+        cost: 1,
+        rarity: "uncommon",
+        target: "enemy",
+        description: "造成 6 点伤害。",
+        effects: [
+          {
+            op: "damage",
+            amount: 6,
+            scaling: { per: "exhaustPile", amount: 3 },
+          },
+        ],
+      },
+      fuel: {
+        id: "fuel",
+        name: "燃料",
+        type: "skill",
+        cost: 0,
+        rarity: "common",
+        target: "self",
+        description: "",
+        effects: [],
+        exhaust: true,
+      },
+    },
+    enemies: {
+      testEnemy: {
+        id: "testEnemy",
+        name: "测试怪",
+        maxHp: 200,
+        pattern: "loop",
+        moves: [{ name: "待机", type: "special" }],
+      },
+    },
+  });
+  const game = new Game(db);
+  const entry = game.run.map.find((n) => n.row === 0);
+  if (!entry) throw new Error("no entry node");
+  game.run.player.deck = ["ashen", "fuel", "fuel"];
+  const combat = game.startCombat(entry, ["testEnemy"]);
+  const enemy = combat.enemies[0];
+  for (const uid of [...combat.player.hand]) {
+    if (combat.getCardId(uid) === "fuel") combat.playCard(uid);
+  }
+  const ashenUid = combat.player.hand.find(
+    (c) => combat.getCardId(c) === "ashen"
+  );
+  if (!ashenUid) throw new Error("no ashen in hand");
+  const hpBefore = enemy.hp;
+  combat.playCard(ashenUid);
+  if (enemy.hp !== hpBefore - 12) {
+    throw new Error(
+      `scaling should add 3 per exhausted card (2 fuel): took ${hpBefore - enemy.hp}`
+    );
+  }
+  console.log("scaling damage (ok)");
+}
+
+// 牌堆转移事件：洗牌 / 弃牌 / 消耗堆取回都会记录，供 UI 播放动画。
+{
+  const db = buildDatabase({
+    cards: {
+      fuel: {
+        id: "fuel",
+        name: "燃料",
+        type: "skill",
+        cost: 0,
+        rarity: "common",
+        target: "self",
+        description: "",
+        effects: [],
+        exhaust: true,
+      },
+    },
+    enemies: {
+      testEnemy: {
+        id: "testEnemy",
+        name: "测试怪",
+        maxHp: 30,
+        pattern: "loop",
+        moves: [{ name: "待机", type: "special" }],
+      },
+    },
+  });
+  const game = new Game(db);
+  const entry = game.run.map.find((n) => n.row === 0);
+  if (!entry) throw new Error("no entry node");
+  game.run.player.deck = ["fuel", "fuel", "strike"];
+  const combat = game.startCombat(entry, ["testEnemy"]);
+  combat.pileMoves = [];
+
+  // 消耗堆取回会记录 exhaust → hand 事件。
+  const fuelUid = combat.player.hand.find(
+    (c) => combat.getCardId(c) === "fuel"
+  );
+  if (!fuelUid) throw new Error("no fuel in hand");
+  combat.playCard(fuelUid);
+  combat.pileMoves = [];
+  combat.applyEffect({ op: "retrieveFromExhaust", amount: 1 });
+  if (
+    !combat.pileMoves.some(
+      (m) => m.from === "exhaust" && m.to === "hand" && m.reason === "retrieve"
+    )
+  ) {
+    throw new Error("retrieve should record an exhaust→hand move");
+  }
+  combat.pileMoves = [];
+
+  // 洗牌：抽牌堆抽空后弃牌堆洗回，记录 discard → draw 事件。
+  combat.player.drawPile = [];
+  combat.player.discardPile = ["strike", "strike"];
+  combat.applyEffect({ op: "draw", amount: 2 });
+  const shuffle = combat.pileMoves.find((m) => m.reason === "shuffle");
+  if (!shuffle || shuffle.from !== "discard" || shuffle.to !== "draw") {
+    throw new Error("shuffle should record a discard→draw move");
+  }
+  console.log("pile move events (ok)");
+}
+
+// 被动钩子系统：注册的被动在对应时机触发（回合开始），且不递归。
+{
+  const db = buildDatabase();
+  const game = new Game(db);
+  const entry = game.run.map.find((n) => n.row === 0);
+  if (!entry) throw new Error("no entry node");
+  game.run.player.deck = ["strike"];
+  const combat = game.startCombat(entry, ["slime"]);
+  combat.applyEffect({
+    op: "passive",
+    hook: "turnStart",
+    effects: [{ op: "apply", status: "vigor", amount: 4, target: "self" }],
+  });
+  combat.endPlayerTurn();
+  if ((combat.player.statuses.vigor ?? 0) !== 4) {
+    throw new Error(
+      `passive turnStart should grant vigor 4, got ${combat.player.statuses.vigor}`
+    );
+  }
+  console.log("passive hook (ok)");
+}
+
+// 新状态：装甲吸收伤害、活力加伤后归零、保留手牌、壁垒保留格挡。
+{
+  const db = buildDatabase({
+    enemies: {
+      puncher: {
+        id: "puncher",
+        name: "拳击手",
+        maxHp: 60,
+        pattern: "loop",
+        moves: [{ name: "攻击", type: "attack", damage: 7 }],
+      },
+    },
+  });
+  const game = new Game(db);
+  const entry = game.run.map.find((n) => n.row === 0);
+  if (!entry) throw new Error("no entry node");
+  game.run.player.deck = ["strike", "defend"];
+  const combat = game.startCombat(entry, ["puncher"]);
+  const enemy = combat.enemies[0];
+
+  // 活力：攻击伤害 +2 后归零。
+  combat.player.statuses.vigor = 2;
+  const hpBefore = enemy.hp;
+  const strikeUid = combat.player.hand.find(
+    (c) => combat.getCardId(c) === "strike"
+  );
+  if (!strikeUid) throw new Error("no strike");
+  combat.playCard(strikeUid);
+  if (enemy.hp !== hpBefore - 8 || (combat.player.statuses.vigor ?? 0) !== 0) {
+    throw new Error(
+      `vigor should add 2 and reset: took ${hpBefore - enemy.hp} vigor=${combat.player.statuses.vigor}`
+    );
+  }
+
+  // 装甲：敌人攻击被装甲吸收一部分。
+  combat.player.statuses.plating = 3;
+  const playerHp = combat.player.hp;
+  combat.endPlayerTurn();
+  if (combat.player.hp !== playerHp - 4 || (combat.player.statuses.plating ?? 0) !== 0) {
+    throw new Error(
+      `plating should absorb 3: took ${playerHp - combat.player.hp} plating=${combat.player.statuses.plating}`
+    );
+  }
+
+  // 保留：结束回合时保留 1 张手牌。
+  combat.player.statuses.retain = 1;
+  const keptCard = combat.player.hand[0];
+  combat.endPlayerTurn();
+  if (!combat.player.hand.includes(keptCard)) {
+    throw new Error("retain should keep the first hand card in hand");
+  }
+
+  // 壁垒：格挡在回合开始时不被清除。
+  combat.player.statuses.barricade = 1;
+  combat.player.block = 20;
+  combat.endPlayerTurn();
+  // 敌人攻击 7 消耗 7 点格挡；剩余 13 在下一回合开始时被壁垒保留。
+  if (combat.player.block !== 13) {
+    throw new Error(`barricade should keep remaining block, got ${combat.player.block}`);
+  }
+  console.log("plating / vigor / retain / barricade (ok)");
+}
+
+// 52 张未实现卡的修正已生效：effects 非空、描述非空。
+{
+  const db = buildDatabase();
+  const ids = Object.keys(PASSIVE_CARD_FIXES);
+  if (ids.length < 50) {
+    throw new Error(`expected 52 fixes, got ${ids.length}`);
+  }
+  for (const id of ids) {
+    const card = db.cards[id];
+    if (!card) throw new Error(`missing card ${id}`);
+    if (card.effects.length === 0) {
+      throw new Error(`card ${id} still has empty effects`);
+    }
+    if (!card.description) {
+      throw new Error(`card ${id} has empty description`);
+    }
+  }
+  console.log(`passive card fixes applied (${ids.length} cards) (ok)`);
+}
+
+// 本地化：全部基础卡与升级卡描述均为中文（无英文残留）。
+{
+  const db = buildDatabase();
+  const all = Object.values(db.cards);
+  const english = all.filter((c) => /[A-Za-z]{3}/.test(c.description));
+  if (english.length > 0) {
+    throw new Error(
+      `${english.length} cards still have english descriptions: ${english
+        .slice(0, 8)
+        .map((c) => c.id)
+        .join(",")}`
+    );
+  }
+  console.log(`localization all-Chinese (${all.length} cards) (ok)`);
 }
 
 console.log("ALL CORE TESTS PASSED");

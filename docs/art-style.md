@@ -34,7 +34,8 @@
 
 ## 2. 角色 / 怪物：像素 Sprite 规范
 
-与 `docs/animation-guide.md` 的 Sprite Sheet 约定完全一致，这里补充风格层规格：
+播放状态机（待机↔受击↔攻击）见 `docs/animation-guide.md`；
+本节为像素素材规格的唯一权威（分辨率 / 调色板 / 帧数 / 命名 / Prompt）：
 
 ### 2.1 画面规格
 
@@ -46,7 +47,7 @@
 | 玩家角色（未来） | 48×48 | ×4 = 192px | 与中型怪同级 |
 
 - 每帧统一尺寸；透明背景；同一张 sheet 内所有帧使用同一调色板。
-- 帧数（沿用 animation-guide）：待机 4~6 帧循环；受击 3~4 帧播一次；攻击 4~6 帧播一次；死亡 4~6 帧（预留）；施法/技能（预留行）。
+- 帧数（本节唯一权威）：待机 4~6 帧循环；受击 3~4 帧播一次；攻击 4~6 帧播一次；死亡 4~6 帧（预留）；施法/技能（预留行）。
 - 命名：`<角色id>_sprite.png`（如 `slime_sprite.png`），与数据 `art` / 未来 `sprite` 字段对应。
 
 ### 2.2 调色板（暗色奇幻像素）
@@ -55,13 +56,13 @@
 - 阴影用同色相深色而不是黑色；高光用同色相亮色而不是纯白。
 - 每张 sheet 附一个「主色」字段建议：`<角色id>_sprite.meta.json`（可选，含主色、动作行数、每行帧数、帧时长），供帧动画播放器读取，不用硬编码。
 
-### 2.3 帧动画播放规则（接入点）
+### 2.3 行布局（素材格式）
 
-- 待机：循环播放第 1 行。
-- 受击：播放第 2 行一次 → 自动切回待机（播放期间可叠加 CSS 震屏/闪白）。
-- 攻击：播放第 3 行一次（可配置在"出招时刻"同步卡牌飞出/伤害数字）。
-- 死亡：播放后移除/淡出。
-- 编辑器：怪物/卡牌表单支持预览 sprite，逐帧步进 + 循环播放。
+- 第 1 行：待机（循环）
+- 第 2 行：受击（播一次后切回待机）
+- 第 3 行起：攻击 / 死亡 / 施法（预留）
+
+播放状态机与编辑器预览见 `docs/animation-guide.md` §7。
 
 ### 2.4 AI 出图 Prompt 模板（像素）
 
@@ -147,7 +148,7 @@ limited palette matching game palette, readable silhouette at small size
 
 > **2026-08-14 临时统一**：为让每张卡先有卡面，全部卡牌暂统一为**磨砂玻璃材质**
 > （`backdrop-filter` 模糊 + 半透明白渐变 + 高光带，颜色取类型色 `--card-accent`，
-> 与 `docs/art-card-material.html` 的 `.mat-glass` 同款语言）。
+> 与 `docs/art-card-studio.html` 的 `.mat-glass` 同款语言）。
 > 上表按稀有度的「粗布/银/合金」分层与金卡/闪卡材质保留待做，class 预留不变。
 
 ---
@@ -186,17 +187,10 @@ limited palette matching game palette, readable silhouette at small size
 
 ---
 
-## 6. 动画分工矩阵（最终版）
+## 6. 动画分工
 
-| 场景 | 形式 |
-| --- | --- |
-| 角色/怪物 待机、受击、攻击、死亡 | PNG 像素帧动画 |
-| 卡牌上的像素立绘/特效 | PNG 帧图（叠在 3D 卡框窗口内） |
-| 卡牌打出飞行、选中上浮、悬停倾斜 | CSS 3D 材质动画（`transform` + 光照变化） |
-| 卡牌悬停倾斜方向 | 跟随鼠标（双轴 rotateX/rotateY + 高光同步），见 §3.3 |
-| 金卡/闪卡 箔面扫光、浮雕微动 | CSS 材质动画（`conic-gradient` 旋转 + 高光位移） |
-| 震屏、血条、数字、状态图标 | CSS 动画 |
-| 背景视差 / 雾动 | CSS 分层动画（慢速、低优先级） |
+> 唯一权威：`docs/animation-guide.md` §6（CSS vs PNG 帧图混合使用策略）。
+> 本节不再重复；风格层的悬停交互约定见 §3.3。
 
 ---
 
@@ -234,7 +228,7 @@ limited palette matching game palette, readable silhouette at small size
 ## 8. 技术实现路径（后续任务）
 
 1. 卡体材质化：`src/styles.css` 卡牌样式按 §3 重构；`cardView.ts` 渲染加稀有度 class、卡图从 emoji 文本切换为 `<img>`/背景图（`card.art` 已是 `string` 字段，兼容图片路径）。
-2. 像素帧播放器：`CardData`/`EnemyData` 增加 `sprite` 字段 + 播放器（行=动作、列=帧），状态机待机↔受击↔攻击；与 `docs/animation-guide.md` 待办合并执行。
+2. 像素帧播放器：`sprite` 字段 + 播放器 + 状态机，见 `docs/animation-guide.md` §7（唯一权威）。
 3. UI 材质化：`styles.css` 全局面板/按钮/血条按 §4 升级；`battleView2.ts` 等只改 class，不动结构。
 4. 背景分层：战斗视图背景三层叠加 + 楼层主题变量（`--act-theme`）。
 5. 金卡/闪卡：材质 class（`.gold` / `.foil`）+ 编辑器预览；掉落/获取机制后续单独设计。
@@ -255,9 +249,11 @@ limited palette matching game palette, readable silhouette at small size
 文档与素材严格分工：
 
 - `docs/` —— 规范与讨论：`art-style.md`（本规范）、`animation-guide.md`（动画方案）、
-  `art-mockup.html`（风格总览预览）、`art-card-material.html`（卡牌材质展示）、
-  `art-monster-material.html`（怪物材质演示）、`art-background-material.html`（背景材质演示）
-- `assets/` —— 实际素材：卡图、Sprite Sheet、UI 贴图、背景分层、材质包
+  `art-card-studio.html`（卡牌美术工作台：材质 / 动画 / 布局 一体）、
+  `art-monster-material.html`（怪物材质演示）、`art-background-material.html`（背景材质演示）、
+  `emboss.md`（卡牌表面工艺方案：浮雕 / 全息）
+- `assets/` —— 实际素材：卡图、Sprite Sheet、UI 贴图（含 `ui/sparkles.gif` 星星闪烁素材）、
+  背景分层、材质包
 
 ```text
 assets/
@@ -274,3 +270,38 @@ assets/
 
 演示页约定：`docs/art-<对象>-material.html`（卡牌 / 怪物 / 背景各一页），脚本顶部有素材配置区：
 `kind: "pixel"` 用内置占位像素画；`kind: "image"` 引用 `assets/` 实际素材，方便随时替换测试。
+
+---
+
+## 11. 卡面结构定稿（v4，2026-08-14）
+
+以 `docs/art-card-studio.html` 为准，卡面自上而下：
+
+1. 卡面底版 `.face`：类型色边框渐变（攻击红 / 技能蓝 / 能力紫）
+2. 画窗外框 `.art-frame`：银/金色渐变边框环，随类型形状裁剪
+3. 画窗图片层 `.art-window`：与边框层**同心同形状**裁剪，支持拖拽 / 缩放 / 滚轮
+4. 费用球 `.cost`（左上）+ 类型宝石 `.type-gem`（右上），压住画角
+5. 卡名 `.name`：顶部居中；异画方案下浮在画上
+6. 稀有度宝石 `.rarity-gem`：嵌入描述面板顶部（普通 24px / 异画 22px）
+7. 描述面板 `.desc`：固定高度、浅色半透明、横纵居中、溢出隐藏
+8. 底部信息条 `.info-strip`：编号 + 类型（+ 稀有度）
+
+### 11.1 七套方案与类型形状
+
+- 普通卡 A 经典大画窗 / B 全宽无框画 / C 纵向三段 / D 极简留白；
+  异画卡 E 满版悬浮 UI / F 满版极简角标 / G 满版金框
+- 类型形状：攻击 = 圆角矩形；技能 = 五边形；能力 = 椭圆（`clip-path` 作用于
+  `.art-frame` 与 `.art-window` 两层，**同心裁剪**保证边框沿形状环绕）
+- 数据模型预留：`CardData.altArt?: boolean`、`shape?: "rect" | "pentagon" | "ellipse"`
+
+### 11.2 全息闪卡与浮雕（2026-08-14）
+
+> 唯一权威：`docs/emboss.md`（卡牌表面工艺方案：浮雕三路线 / 全息叠层 / 产品决策 / 踩坑 / 性能）。
+> 交互演示：`docs/art-card-studio.html`（卡牌美术工作台：材质 / 动画 / 布局 一体）。
+
+决策摘要（细节与踩坑见 emboss.md §6）：
+
+- 3D 只做"整卡旋转 + 图案随鼠标视角"，膜层贴死卡面；卡图不做每帧独立位移、不加 `will-change`
+- 手牌常态只开 bevel / gold（纯阴影零滤镜）；悬停 / 大图才开 art / grain（SVG 滤镜）
+- 异画卡亮底全息混合用 `overlay`，普通卡用 `color-dodge`
+- 文字保持平面不参与浮雕

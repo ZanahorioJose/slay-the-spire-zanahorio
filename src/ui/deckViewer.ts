@@ -1,5 +1,6 @@
 import type { CardData, GameDatabase } from "../core/types";
 import { el, button } from "./dom";
+import { attachTooltip } from "./tooltip";
 import { renderCard } from "./cardView";
 
 export function showCardListOverlay(
@@ -9,7 +10,7 @@ export function showCardListOverlay(
   resolve?: (ref: string) => CardData | undefined
 ): HTMLElement {
   const overlay = el("div", "overlay");
-  const panel = el("div", "panel deck-panel");
+  const panel = el("div", "panel deck-panel pop-in");
   panel.appendChild(el("h2", "panel-title", title));
   const grid = el("div", "deck-grid");
   for (const ref of refs) {
@@ -33,7 +34,7 @@ export function showRelicOverlay(
   db: GameDatabase
 ): void {
   const overlay = el("div", "overlay");
-  const panel = el("div", "panel deck-panel");
+  const panel = el("div", "panel deck-panel pop-in");
   panel.appendChild(el("h2", "panel-title", "遗物"));
   const list = el("div", "relic-list");
   for (const id of relicIds) {
@@ -45,6 +46,7 @@ export function showRelicOverlay(
       el("span", "relic-name", relic.name),
       el("span", "relic-desc", relic.description)
     );
+    attachTooltip(row, `${relic.name}：${relic.description}`);
     list.appendChild(row);
   }
   if (list.childElementCount === 0) {

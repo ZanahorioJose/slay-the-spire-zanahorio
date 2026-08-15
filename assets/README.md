@@ -1,8 +1,8 @@
 # 美术素材目录（assets/）
 
 > 与 `docs/` 的分工：`docs/` 只放**规范与讨论**（`art-style.md`、`animation-guide.md`、
-> `art-mockup.html`、`art-card-material.html`，未来 `art-monster-material.html` /
-> `art-background-material.html`）；本目录放**实际美术素材**——
+> `art-card-studio.html`、`art-monster-material.html`、`art-background-material.html`、
+> `emboss.md`）；本目录放**实际美术素材**——
 > 像素精灵表、卡图、UI 贴图、背景分层与材质包。
 
 ## 目录结构

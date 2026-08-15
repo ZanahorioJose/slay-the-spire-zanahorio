@@ -1,6 +1,7 @@
 import type { RelicData } from "../core/types";
+import { STS2_PACK } from "../core/types";
 
-export const BASE_RELICS: RelicData[] = [
+export const BASE_RELICS: RelicData[] = ([
   {
     id: "jade_pendant",
     name: "翡翠吊坠",
@@ -81,4 +82,79 @@ export const BASE_RELICS: RelicData[] = [
     drawBonus: 1,
     pools: ["event"],
   },
-];
+  // ---- 角色起始遗物（STS2 资料：Burning Blood / Ring of the Snake /
+  // Divine Right / Bound Phylactery / Cracked Core） ----
+  {
+    id: "burning_blood",
+    name: "燃烧之血",
+    description: "每场战斗结束时回复 6 点生命。",
+    art: "🩸",
+    trigger: "battleEnd",
+    effects: [{ op: "heal", amount: 6 }],
+    character: "warrior",
+  },
+  {
+    id: "ring_of_the_snake",
+    name: "蛇之戒",
+    description: "每回合多抽 2 张牌。",
+    art: "🐍",
+    trigger: "turnStart",
+    effects: [],
+    drawBonus: 2,
+    character: "silent",
+  },
+  {
+    id: "divine_right",
+    name: "神圣权柄",
+    description: "每场战斗开始时获得 3 点星辰。",
+    art: "👑",
+    trigger: "combatStart",
+    effects: [{ op: "gainStars", amount: 3 }],
+    character: "regent",
+  },
+  {
+    id: "bound_phylactery",
+    name: "绑定魂匣",
+    description: "战斗开始时召唤骷髅护卫（3 点生命，回合开始攻击敌人，能替你挡刀）。",
+    art: "📿",
+    trigger: "combatStart",
+    effects: [
+      { op: "summon", hp: 3, damage: 3, name: "骷髅护卫", art: "🦴" },
+    ],
+    character: "necrobinder",
+  },
+  {
+    id: "cracked_core",
+    name: "破损核心",
+    description: "每场战斗开始时引导 1 颗闪电宝珠。",
+    art: "⚙️",
+    trigger: "combatStart",
+    effects: [{ op: "channel", orb: "lightning" }],
+    character: "defect",
+  },
+  // ---- STS2 通用遗物（使用新的 cardExhausted / receiveDamage 时机） ----
+  {
+    id: "ember_core",
+    name: "余烬核心",
+    description: "每当你消耗一张牌，获得 1 点格挡。",
+    art: "🔥",
+    trigger: "cardExhausted",
+    effects: [{ op: "block", amount: 1 }],
+  },
+  {
+    id: "iron_soul",
+    name: "铁魂",
+    description: "每当你消耗一张牌，抽 1 张牌。",
+    art: "🧲",
+    trigger: "cardExhausted",
+    effects: [{ op: "draw", amount: 1 }],
+  },
+  {
+    id: "reactive_plating",
+    name: "反应装甲",
+    description: "每当你受到伤害，获得 1 点格挡。",
+    art: "🛡️",
+    trigger: "receiveDamage",
+    effects: [{ op: "block", amount: 1 }],
+  },
+] as RelicData[]).map((r) => ({ ...r, pack: r.pack ?? STS2_PACK }));

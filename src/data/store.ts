@@ -44,7 +44,15 @@ const IDB_NAME = "slay-the-spire-diy";
 const IDB_VERSION = 1;
 const IDB_STORE = "kv";
 
-const SECTIONS = ["cards", "enemies", "relics", "events", "ancients"] as const;
+const SECTIONS = [
+  "cards",
+  "enemies",
+  "relics",
+  "events",
+  "ancients",
+  "characters",
+  "potions",
+] as const;
 type Section = (typeof SECTIONS)[number];
 
 const FILE_NAMES: Record<Section, string> = {
@@ -53,6 +61,8 @@ const FILE_NAMES: Record<Section, string> = {
   relics: "relics.json",
   events: "events.json",
   ancients: "ancients.json",
+  characters: "characters.json",
+  potions: "potions.json",
 };
 const SETTINGS_FILE = "settings.json";
 const SAVE_FILE = "save.json";

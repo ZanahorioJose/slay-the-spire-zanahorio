@@ -1,6 +1,8 @@
 import type {
   AncientData,
+  CardArtStyle,
   CardData,
+  CardMaterial,
   CardPool,
   CardRarity,
   CardTarget,
@@ -12,18 +14,20 @@ import type {
   EnemyPattern,
   EventData,
   EventOption,
+  PotionData,
   RelicData,
   RelicPool,
   RelicTrigger,
   StatusType,
 } from "../core/types";
-import { STATUS_DEFS } from "../core/types";
+import { ORB_DEFS, STATUS_DEFS } from "../core/types";
 import {
   buildDatabase,
   exportCustomData,
   importCustomData,
 } from "../data";
 import type { CustomData } from "../data";
+import { describeEffects } from "../data/describe";
 import {
   bindDataDirectory,
   clearDebugData,
@@ -41,9 +45,23 @@ import type { GameDatabase } from "../core/types";
 import { STARTING_DECK } from "../core/game";
 import { clear, el, button } from "./dom";
 import { renderCard } from "./cardView";
+import { showAlert, showConfirm } from "./modal";
 
-type Tab = "cards" | "enemies" | "relics" | "events" | "ancients" | "settings";
-type SectionKey = "cards" | "enemies" | "relics" | "events" | "ancients";
+type Tab =
+  | "cards"
+  | "enemies"
+  | "relics"
+  | "events"
+  | "ancients"
+  | "potions"
+  | "settings";
+type SectionKey =
+  | "cards"
+  | "enemies"
+  | "relics"
+  | "events"
+  | "ancients"
+  | "potions";
 
 const STATUS_OPTIONS = Object.keys(STATUS_DEFS) as StatusType[];
 
@@ -130,9 +148,9 @@ export async function renderEditor(
         clearDebugData();
         await saveFormalData(formal);
         rebuild();
-        alert("导入成功！已覆盖正式数据并清空临时调整。");
+        showAlert("导入成功！已覆盖正式数据并清空临时调整。");
       } catch (err) {
-        alert(`导入失败：${err instanceof Error ? err.message : String(err)}`);
+        showAlert(`导入失败：${err instanceof Error ? err.message : String(err)}`);
       }
     };
     reader.readAsText(file, "utf-8");
@@ -165,6 +183,7 @@ export async function renderEditor(
       { id: "relics", label: "遗物" },
       { id: "events", label: "事件" },
       { id: "ancients", label: "先古" },
+      { id: "potions", label: "药水" },
       { id: "settings", label: "全局设置" },
     ];
     for (const def of defs) {
@@ -178,6 +197,7 @@ export async function renderEditor(
     id: string;
     label: string;
     art: string;
+    artStyle?: CardArtStyle;
     source: "base" | "formal" | "debug";
   }[] {
     const map: Record<string, { label: string; art: string }> = {};
@@ -202,12 +222,18 @@ export async function renderEditor(
       for (const [id, ancient] of Object.entries(workingDb.ancients)) {
         map[id] = { label: ancient.name, art: ancient.art ?? "🧭" };
       }
+    } else if (tab === "potions") {
+      for (const [id, potion] of Object.entries(workingDb.potions)) {
+        map[id] = { label: potion.name, art: potion.art ?? "🧪" };
+      }
     } else {
       return [];
     }
     return Object.entries(map).map(([id, info]) => ({
       id,
       ...info,
+      artStyle:
+        tab === "cards" ? workingDb.cards[id]?.artStyle : undefined,
       source: entrySource(tab, id),
     }));
   }
@@ -242,7 +268,15 @@ export async function renderEditor(
       );
       return;
     }
-    const entries = entryList().sort((a, b) => a.id.localeCompare(b.id));
+    // 卡牌图鉴统一展示顺序：普通卡（画窗布局）在前，异画卡（满版）在后。
+    const entries = entryList().sort((a, b) => {
+      if (tab === "cards") {
+        const aa = a.artStyle === "alt" ? 1 : 0;
+        const ba = b.artStyle === "alt" ? 1 : 0;
+        if (aa !== ba) return aa - ba;
+      }
+      return a.id.localeCompare(b.id);
+    });
     for (const entry of entries) {
       const item = el(
         "div",
@@ -256,9 +290,13 @@ export async function renderEditor(
           : entry.source === "formal"
             ? "正式数据（data/ 文件或浏览器存储）"
             : "内置数据";
+      const nameWrap = el("span", "editor-list-name", entry.label);
+      if (tab === "cards" && entry.artStyle === "alt") {
+        nameWrap.appendChild(el("span", "editor-list-badge", "异画"));
+      }
       item.append(
         el("span", "editor-list-art", entry.art),
-        el("span", "editor-list-name", entry.label),
+        nameWrap,
         el("span", "editor-list-id", entry.id)
       );
       item.addEventListener("click", () => {
@@ -303,6 +341,9 @@ export async function renderEditor(
     } else if (tab === "ancients") {
       const ancient = workingDb.ancients[selectedId];
       if (ancient) renderAncientForm(ancient);
+    } else if (tab === "potions") {
+      const potion = workingDb.potions[selectedId];
+      if (potion) renderPotionForm(potion);
     } else {
       const event = workingDb.events[selectedId];
       if (event) renderEventForm(event);
@@ -317,7 +358,7 @@ export async function renderEditor(
       button("创建", () => {
         const id = idInput.value.trim();
         if (!id) {
-          alert("id 不能为空");
+          showAlert("id 不能为空");
           return;
         }
         createEmptyEntry(id);
@@ -330,7 +371,7 @@ export async function renderEditor(
     const section = (debug[tab] ?? {}) as Record<string, unknown>;
     const formalSection = (formal[tab] ?? {}) as Record<string, unknown>;
     if (id in section || id in formalSection) {
-      alert("该 id 已存在");
+      showAlert("该 id 已存在");
       return;
     }
     if (tab === "cards") {
@@ -368,6 +409,13 @@ export async function renderEditor(
         healPercent: 100,
         relicPool: [],
       };
+    } else if (tab === "potions") {
+      section[id] = {
+        id,
+        name: "新药水",
+        description: "效果描述",
+        effects: [{ op: "heal", amount: 10 }],
+      };
     } else {
       section[id] = {
         id,
@@ -379,7 +427,7 @@ export async function renderEditor(
     debug[tab] = section as never;
     saveDebugData(debug);
     rebuild(id);
-    alert("已创建临时条目（临时层）。编辑后点「写入正式数据」可固化到 data/ 文件。");
+    showAlert("已创建临时条目（临时层）。编辑后点「写入正式数据」可固化到 data/ 文件。");
   }
 
   function isSectionKey(value: Tab): value is SectionKey {
@@ -431,7 +479,7 @@ export async function renderEditor(
     saveToSection(debug, section, draft);
     saveDebugData(debug);
     rebuild(draft.id);
-    alert("已保存为临时调整（立即生效，尚未写入 data/ 文件）。");
+    showAlert("已保存为临时调整（立即生效，尚未写入 data/ 文件）。");
   }
 
   async function commitFormal(
@@ -441,14 +489,14 @@ export async function renderEditor(
     saveToSection(formal, section, draft);
     const result = await saveFormalData(formal);
     rebuild(draft.id);
-    alert(result.message);
+    showAlert(result.message);
   }
 
   function deleteTemporary(section: SectionKey, id: string): void {
     removeFromSection(debug, section, id);
     saveDebugData(debug);
     rebuild();
-    alert("已临时删除（未写入 data/ 文件）。");
+    showAlert("已临时删除（未写入 data/ 文件）。");
   }
 
   async function deleteFormal(section: SectionKey, id: string): Promise<void> {
@@ -460,20 +508,21 @@ export async function renderEditor(
     saveDebugData(debug);
     const result = await saveFormalData(formal);
     rebuild();
-    alert(result.message);
+    showAlert(result.message);
   }
 
   function clearTemporary(): void {
-    if (!window.confirm("确定清空所有临时调整？")) return;
-    clearDebugData();
-    debug = {};
-    rebuild();
-    alert("已清空临时调整。");
+    showConfirm("确定清空所有临时调整？", () => {
+      clearDebugData();
+      debug = {};
+      rebuild();
+      showAlert("已清空临时调整。");
+    });
   }
 
   async function bindDirectory(): Promise<void> {
     if (!supportsDirectoryPicker()) {
-      alert("当前浏览器不支持 File System Access API，请使用 Chrome / Edge。");
+      showAlert("当前浏览器不支持 File System Access API，请使用 Chrome / Edge。");
       return;
     }
     const result = await bindDataDirectory();
@@ -481,22 +530,31 @@ export async function renderEditor(
       formal = await loadFormalData();
       rebuild();
     }
-    alert(result.message);
+    showAlert(result.message);
   }
 
   async function unbindDirectory(): Promise<void> {
-    if (!window.confirm("解除绑定后，正式数据将回到浏览器存储。确定？")) {
-      return;
-    }
-    await unbindDataDirectory();
-    formal = await loadFormalData();
-    rebuild();
-    alert("已解除绑定。");
+    showConfirm("解除绑定后，正式数据将回到浏览器存储。确定？", () => {
+      void (async () => {
+        await unbindDataDirectory();
+        formal = await loadFormalData();
+        rebuild();
+        showAlert("已解除绑定。");
+      })();
+    });
   }
 
   function hasDebug(): boolean {
     return (
-      ["cards", "enemies", "relics", "events", "ancients", "settings"] as const
+      [
+        "cards",
+        "enemies",
+        "relics",
+        "events",
+        "ancients",
+        "potions",
+        "settings",
+      ] as const
     ).some((section) => {
         const value = debug[section];
         return (
@@ -525,6 +583,14 @@ export async function renderEditor(
     const effectsBox = el("div", "form-effects");
     const upgradeBox = el("div", "form-upgrade");
     const compareBox = el("div", "card-compare");
+
+    const characterOptions = (): { value: string; label: string }[] => [
+      { value: "", label: "（无色/通用）" },
+      ...Object.values(workingDb.characters).map((c) => ({
+        value: c.id,
+        label: c.name,
+      })),
+    ];
 
     // Live side-by-side preview: base card on the left, derived upgraded
     // card on the right, so number tweaks are visible at a glance.
@@ -559,6 +625,25 @@ export async function renderEditor(
       };
     };
 
+    // 描述输入框：文本可手写，也可用「从效果自动生成」一键填充。
+    const descInput = textAreaInput(
+      draft.description,
+      bump((v) => (draft.description = v))
+    );
+    const descWrap = el("div", "form-field");
+    descWrap.append(el("span", "form-label", "描述（可手写，或用生成器填充）"), descInput);
+    const genDescBtn = button(
+      "✨ 从效果自动生成",
+      () => {
+        const text = describeEffects(draft.effects ?? []);
+        draft.description = text;
+        descInput.value = text;
+        renderCompare();
+      },
+      "btn btn-small"
+    );
+    descWrap.append(genDescBtn);
+
     fields.append(
       field("id（只读）", textInput(draft.id, () => undefined, true)),
       field("名称", textInput(draft.name, bump((v) => (draft.name = v)))),
@@ -575,6 +660,24 @@ export async function renderEditor(
         numInput(draft.cost, bump((v) => (draft.cost = v)), 0, 9)
       ),
       field(
+        "星辰费用（打出需要 ⭐，0 表示不需要）",
+        numInput(
+          draft.starsCost ?? 0,
+          bump((v) => (draft.starsCost = v > 0 ? v : undefined)),
+          0,
+          99
+        )
+      ),
+      field(
+        "灵魂费用（打出需要 👻，0 表示不需要）",
+        numInput(
+          draft.soulsCost ?? 0,
+          bump((v) => (draft.soulsCost = v > 0 ? v : undefined)),
+          0,
+          99
+        )
+      ),
+      field(
         "稀有度",
         selectInput<CardRarity>(
           ["starter", "common", "uncommon", "rare"].map((v) => ({
@@ -584,6 +687,77 @@ export async function renderEditor(
           draft.rarity,
           bump((v) => (draft.rarity = v))
         )
+      ),
+      field(
+        "卡面材质（留空=按稀有度派生，金卡/闪卡可选 gold/foil）",
+        selectInput<CardMaterial | "">(
+          [
+            { value: "", label: "（按稀有度派生）" },
+            ...(["cloth", "silver", "alloy", "gold", "foil"] as const).map(
+              (v) => ({ value: v, label: v })
+            ),
+          ],
+          draft.material ?? "",
+          bump((v) => (draft.material = v || undefined))
+        )
+      ),
+      field(
+        "卡面布局（普通卡=画窗布局，异画卡=满版布局）",
+        selectInput<CardArtStyle | "">(
+          [
+            { value: "", label: "普通卡（画窗布局，默认）" },
+            { value: "alt", label: "异画卡（满版布局）" },
+          ],
+          draft.artStyle ?? "",
+          bump((v) => (draft.artStyle = v || undefined))
+        )
+      ),
+      field(
+        "卡面方案代号（对应 v4 方案 A-G，可留空）",
+        textInput(draft.scheme ?? "", bump((v) => (draft.scheme = v || undefined)))
+      ),
+      field(
+        "卡图编号（如 NO.102）",
+        textInput(draft.number ?? "", bump((v) => (draft.number = v || undefined)))
+      ),
+      field(
+        "卡图缩放（0.25~4）",
+        numInput(
+          draft.artScale ?? 1,
+          bump((v) => (draft.artScale = v)),
+          0.25,
+          4
+        )
+      ),
+      field(
+        "卡图 X 偏移（-120~120）",
+        numInput(
+          draft.artX ?? 0,
+          bump((v) => (draft.artX = v)),
+          -120,
+          120
+        )
+      ),
+      field(
+        "卡图 Y 偏移（-120~120）",
+        numInput(
+          draft.artY ?? 0,
+          bump((v) => (draft.artY = v)),
+          -120,
+          120
+        )
+      ),
+      field(
+        "所属角色（留空 = 无色/通用）",
+        selectInput(
+          characterOptions(),
+          draft.character ?? "",
+          bump((v) => (draft.character = v || undefined))
+        )
+      ),
+      field(
+        "拓展包代号（如 STS2，留空 = 基础包）",
+        textInput(draft.pack ?? "", bump((v) => (draft.pack = v || undefined)))
       ),
       field(
         "出没池（逗号分隔 reward/shop/boss/event，留空=全部）",
@@ -605,12 +779,16 @@ export async function renderEditor(
           bump((v) => (draft.target = v))
         )
       ),
-      field("描述（展示用，可随意写）", textAreaInput(draft.description, bump((v) => (draft.description = v)))),
+      descWrap,
       field("图标（emoji）", textInput(draft.art ?? "", bump((v) => (draft.art = v)))),
       field("主色调", colorInput(draft.color ?? "#888888", bump((v) => (draft.color = v)))),
       field(
         "版本/拓展包（如 基础版、DLC1，可留空）",
         textInput(draft.version ?? "", bump((v) => (draft.version = v || undefined)))
+      ),
+      field(
+        "风味文案（卡面底部趣味描述，不参与游戏逻辑）",
+        textAreaInput(draft.flavor ?? "", bump((v) => (draft.flavor = v || undefined)))
       ),
       field(
         "消耗",
@@ -643,18 +821,32 @@ export async function renderEditor(
       upgradeBox.append(upgradeTitle, hasUpgrade);
       if (draft.upgrade) {
         const up = draft.upgrade;
+        const upDescInput = textAreaInput(
+          up.description ?? draft.description,
+          bump((v) => (up.description = v))
+        );
+        const upDescWrap = el("div", "form-field");
+        upDescWrap.append(
+          el("span", "form-label", "升级描述（留空继承基础，可生成）"),
+          upDescInput
+        );
+        const genUpDescBtn = button(
+          "✨ 从升级效果自动生成",
+          () => {
+            const text = describeEffects(up.effects ?? draft.effects ?? []);
+            up.description = text;
+            upDescInput.value = text;
+            renderCompare();
+          },
+          "btn btn-small"
+        );
+        upDescWrap.append(genUpDescBtn);
         upgradeBox.append(
           field(
             "升级费用（留空继承基础）",
             numInput(up.cost ?? draft.cost, bump((v) => (up.cost = v)), 0, 9)
           ),
-          field(
-            "升级描述（留空继承基础）",
-            textAreaInput(
-              up.description ?? draft.description,
-              bump((v) => (up.description = v))
-            )
-          ),
+          upDescWrap,
           field(
             "升级后消耗",
             checkboxInput(
@@ -781,6 +973,24 @@ export async function renderEditor(
         textInput(draft.version ?? "", (v) => (draft.version = v || undefined))
       ),
       field(
+        "所属角色（留空 = 通用遗物）",
+        selectInput(
+          [
+            { value: "", label: "（通用）" },
+            ...Object.values(workingDb.characters).map((c) => ({
+              value: c.id,
+              label: c.name,
+            })),
+          ],
+          draft.character ?? "",
+          (v) => (draft.character = v || undefined)
+        )
+      ),
+      field(
+        "拓展包代号（如 STS2，留空 = 基础包）",
+        textInput(draft.pack ?? "", (v) => (draft.pack = v || undefined))
+      ),
+      field(
         "触发时机",
         selectInput<RelicTrigger>(
           RELIC_TRIGGER_OPTIONS,
@@ -879,6 +1089,65 @@ export async function renderEditor(
     );
   }
 
+  function renderPotionForm(potion: PotionData): void {
+    const draft: PotionData = structuredClone(potion);
+    const fields = el("div", "form-fields");
+    const effectsBox = el("div", "form-effects");
+    fields.append(
+      field("id（只读）", textInput(draft.id, () => undefined, true)),
+      field("名称", textInput(draft.name, (v) => (draft.name = v))),
+      field(
+        "描述",
+        textAreaInput(draft.description, (v) => (draft.description = v))
+      ),
+      field("图标（emoji）", textInput(draft.art ?? "", (v) => (draft.art = v))),
+      field(
+        "稀有度",
+        selectInput<"common" | "uncommon" | "rare">(
+          (["common", "uncommon", "rare"] as const).map((v) => ({
+            value: v,
+            label: v,
+          })),
+          draft.rarity ?? "common",
+          (v) => (draft.rarity = v)
+        )
+      ),
+      field(
+        "拓展包代号（如 STS2，留空 = 基础包）",
+        textInput(draft.pack ?? "", (v) => (draft.pack = v || undefined))
+      ),
+      field(
+        "所属角色（留空 = 通用）",
+        selectInput(
+          [
+            { value: "", label: "（通用）" },
+            ...Object.values(workingDb.characters).map((c) => ({
+              value: c.id,
+              label: c.name,
+            })),
+          ],
+          draft.character ?? "",
+          (v) => (draft.character = v || undefined)
+        )
+      )
+    );
+    form.append(
+      el("h3", "form-title", `编辑药水：${draft.name}`),
+      el(
+        "p",
+        "editor-settings-note",
+        "药水只能在战斗中使用，效果直接作用于当前战斗；背包上限 3 瓶。"
+      ),
+      fields,
+      el("h4", "form-subtitle", "使用效果"),
+      effectsBox,
+      actionRow("potions", draft)
+    );
+    renderEffectList(effectsBox, draft.effects, (next) => {
+      draft.effects = next;
+    });
+  }
+
   function renderSettingsForm(): void {
     const draft = {
       startingHp: custom.settings?.startingHp ?? 70,
@@ -888,6 +1157,7 @@ export async function renderEditor(
       startingDeck: (custom.settings?.startingDeck ?? STARTING_DECK).join(","),
       ancientHealPercent: custom.settings?.ancientHealPercent ?? 100,
       ancientId: custom.settings?.ancientId ?? "",
+      characterId: custom.settings?.characterId ?? "",
     };
     const fields = el("div", "form-fields");
     fields.append(
@@ -916,6 +1186,20 @@ export async function renderEditor(
           draft.ancientId,
           (v) => (draft.ancientId = v)
         )
+      ),
+      field(
+        "默认角色（新开一局使用）",
+        selectInput(
+          [
+            { value: "", label: "（默认：第一个角色）" },
+            ...Object.values(workingDb.characters).map((c) => ({
+              value: c.id,
+              label: c.name,
+            })),
+          ],
+          draft.characterId,
+          (v) => (draft.characterId = v)
+        )
       )
     );
     form.append(
@@ -932,14 +1216,14 @@ export async function renderEditor(
           saveDebugData(debug);
           custom = mergeCustomData(formal, debug);
           renderBackend();
-          alert("已保存为临时调整（新开一局生效）。");
+          showAlert("已保存为临时调整（新开一局生效）。");
         }, "btn"),
         button("写入正式数据", () => {
           formal.settings = collectSettings();
           void saveFormalData(formal).then((result) => {
             custom = mergeCustomData(formal, debug);
             renderBackend();
-            alert(result.message);
+            showAlert(result.message);
           });
         }, "btn"),
       ])
@@ -957,6 +1241,7 @@ export async function renderEditor(
           .filter(Boolean),
         ancientHealPercent: draft.ancientHealPercent,
         ancientId: draft.ancientId || undefined,
+        characterId: draft.characterId || undefined,
       };
     }
   }
@@ -1102,6 +1387,44 @@ export async function renderEditor(
         return `随机消耗 ${effect.amount ?? 1} 张手牌`;
       case "gainGold":
         return `获得 ${effect.amount} 金币`;
+      case "gainStars":
+        return `获得 ${effect.amount} 点星辰 ⭐`;
+      case "gainSouls":
+        return `获得 ${effect.amount} 点灵魂 👻`;
+      case "channel":
+        return `引导${ORB_DEFS[effect.orb].name}宝珠`;
+      case "evoke":
+        return `打出 ${effect.amount ?? 1} 颗宝珠`;
+      case "focus":
+        return `集中 ${effect.amount >= 0 ? "+" : ""}${effect.amount}`;
+      case "summon":
+        return `召唤「${effect.name ?? "骷髅护卫"}」（${effect.hp ?? 1} 血 / ${effect.damage ?? 3} 攻）`;
+      case "healSummon":
+        return `召唤物回复 ${effect.amount} 生命`;
+      case "retrieveFromExhaust":
+        return `从消耗堆取回 ${effect.amount ?? 1} 张牌`;
+      case "discard":
+        return effect.amount === undefined
+          ? "弃置全部手牌"
+          : `弃置 ${effect.amount} 张手牌`;
+      case "forge":
+        return `锻造 ${effect.amount ?? 1}（升级手牌中随机牌）`;
+      case "addCountdown":
+        return `${effect.turns} 回合后：${effect.label}`;
+      case "orbSlots":
+        return `宝珠槽上限 ${effect.amount >= 0 ? "+" : ""}${effect.amount}`;
+      case "passive":
+        return `被动（${effect.hook}）`;
+      case "retrieveFromDiscard":
+        return `从弃牌堆取回 ${effect.amount ?? 1} 张${
+          effect.cardType ?? "牌"
+        }${effect.upgrade ? "并升级" : ""}`;
+      case "addRandomCard":
+        return `加入随机${effect.cardType ?? "卡牌"} ×${effect.amount ?? 1}`;
+      case "transformCard":
+        return `变形 ${effect.amount ?? 1} 张手牌`;
+      case "playTopCard":
+        return "打出抽牌堆顶的牌";
     }
   }
 
@@ -1426,6 +1749,14 @@ export async function renderEditor(
           copy[index] = {
             ...option,
             addCards: v.split(",").map((s) => s.trim()).filter(Boolean),
+          };
+          onCommit(copy);
+        })),
+        field("获得药水（逗号分隔 id）", textInput((option.addPotions ?? []).join(","), (v) => {
+          const copy = [...options];
+          copy[index] = {
+            ...option,
+            addPotions: v.split(",").map((s) => s.trim()).filter(Boolean),
           };
           onCommit(copy);
         })),

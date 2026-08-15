@@ -2,7 +2,7 @@ import type { GameDatabase } from "../core/types";
 import { el, button } from "./dom";
 
 export interface MenuOptions {
-  onStart: () => void;
+  onStart: (characterId: string) => void;
   onEditor: () => void;
   onTestRoom?: () => void;
   onContinue?: () => void;
@@ -26,7 +26,7 @@ export function renderMenu(
   const stats = el(
     "div",
     "menu-stats",
-    `已收录 ${Object.keys(db.cards).length} 张卡牌 · ${Object.keys(db.enemies).length} 种怪物 · ${Object.keys(db.relics).length} 件遗物 · ${Object.keys(db.events).length} 个事件`
+    `已收录 ${Object.keys(db.characters).length} 位角色 · ${Object.keys(db.cards).length} 张卡牌 · ${Object.keys(db.enemies).length} 种怪物 · ${Object.keys(db.relics).length} 件遗物 · ${Object.keys(db.events).length} 个事件`
   );
   const buttons = el("div", "menu-buttons");
   if (options.onContinue && options.continueSummary) {
@@ -38,13 +38,12 @@ export function renderMenu(
       )
     );
   }
-  const startBtn = button("开始新游戏", options.onStart, "btn menu-btn");
   const editorBtn = button(
     "✏️ DIY 编辑器",
     options.onEditor,
     "btn menu-btn"
   );
-  buttons.append(startBtn, editorBtn);
+  buttons.append(editorBtn);
   if (options.onTestRoom) {
     buttons.appendChild(
       button("🧪 测试房间", options.onTestRoom, "btn menu-btn")
@@ -68,6 +67,33 @@ export function renderMenu(
     "menu-hint",
     "提示：编辑器里可「临时微调」（立即生效）或「写入正式数据」（固化到 data/ 文件夹）；进度会自动存档。"
   );
-  root.append(title, subtitle, stats, buttons, dataRow, hint);
+
+  // 角色选择：点击任意角色立即以该角色开始新游戏。
+  const charSection = el("div", "menu-char-section");
+  charSection.appendChild(
+    el("h2", "menu-char-title", "选择角色 · 开始新游戏")
+  );
+  const charGrid = el("div", "char-grid");
+  for (const character of Object.values(db.characters)) {
+    const card = el(
+      "div",
+      "char-btn",
+      [
+        el("div", "char-art", character.art ?? "🧙"),
+        el("div", "char-name", character.name),
+        el(
+          "div",
+          "char-info",
+          `生命 ${character.startingHp} · ${character.startingDeck.length} 张起始牌`
+        ),
+      ]
+    );
+    card.style.setProperty("--char-color", character.color ?? "#888");
+    card.title = `以「${character.name}」开始新游戏`;
+    card.addEventListener("click", () => options.onStart(character.id));
+    charGrid.appendChild(card);
+  }
+  charSection.appendChild(charGrid);
+  root.append(title, subtitle, stats, charSection, buttons, dataRow, hint);
   app.replaceChildren(root);
 }

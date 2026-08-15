@@ -1,6 +1,7 @@
 import { Game } from "../core/game";
 import { el, button, showToast } from "./dom";
 import type { EventData } from "../core/types";
+import { attachTooltip } from "./tooltip";
 
 export function renderEvent(
   app: HTMLElement,
@@ -52,6 +53,11 @@ export function renderEvent(
       btn.title = option.description;
       btn.appendChild(el("span", "event-btn-desc", option.description));
     }
+    const tooltipParts = [
+      option.description,
+      option.goldCost !== undefined ? `需要 ${option.goldCost} 金币` : "",
+    ].filter(Boolean);
+    attachTooltip(btn, tooltipParts.join(" · "));
     if (option.goldCost !== undefined) {
       btn.appendChild(
         el("span", "event-btn-desc", `需要 ${option.goldCost} 金币`)

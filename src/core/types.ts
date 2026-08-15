@@ -3,6 +3,9 @@
 // so the game logic never hard-codes a specific card or enemy.
 // ---------------------------------------------------------------------------
 
+// 基础拓展包代号：杀戮尖塔 2。未来 DLC 用各自代号命名。
+export const STS2_PACK = "STS2";
+
 export type EffectTarget = "self" | "enemy" | "allEnemies" | "none";
 
 export type StatusType =
@@ -16,7 +19,14 @@ export type StatusType =
   | "ritual"
   | "metallicize"
   | "intangible"
-  | "artifact";
+  | "artifact"
+  | "starlight"
+  | "soulflow"
+  | "doom"
+  | "plating"
+  | "vigor"
+  | "retain"
+  | "barricade";
 
 export interface StatusDef {
   id: StatusType;
@@ -92,10 +102,74 @@ export const STATUS_DEFS: Record<StatusType, StatusDef> = {
     description: "免疫下一次负面状态，随后 -1",
     positive: true,
   },
+  starlight: {
+    id: "starlight",
+    name: "星辉",
+    description: "每回合开始获得 1 点星辰",
+    positive: true,
+  },
+  soulflow: {
+    id: "soulflow",
+    name: "灵魂涌动",
+    description: "每回合开始获得 1 点灵魂",
+    positive: true,
+  },
+  doom: {
+    id: "doom",
+    name: "灾厄",
+    description: "累计 10 层时被处决，回合结束 -1",
+    positive: false,
+  },
+  plating: {
+    id: "plating",
+    name: "装甲",
+    description: "受到伤害时优先扣除装甲层数",
+    positive: true,
+  },
+  vigor: {
+    id: "vigor",
+    name: "活力",
+    description: "下一次攻击伤害提升等同层数，随后归零",
+    positive: true,
+  },
+  retain: {
+    id: "retain",
+    name: "保留",
+    description: "回合结束时保留等量手牌（不弃置）",
+    positive: true,
+  },
+  barricade: {
+    id: "barricade",
+    name: "壁垒",
+    description: "你的格挡不会在回合开始时被清除",
+    positive: true,
+  },
+};
+
+// 状态图标：状态条上以图标 + 层数显示，鼠标悬停显示 STATUS_DEFS 的解释。
+export const STATUS_ICONS: Record<StatusType, string> = {
+  strength: "💪",
+  dexterity: "🦶",
+  vulnerable: "🎯",
+  weak: "💫",
+  poison: "☠️",
+  frail: "🕸️",
+  thorns: "🌵",
+  ritual: "🔮",
+  metallicize: "⚙️",
+  intangible: "👻",
+  artifact: "🛡️",
+  starlight: "⭐",
+  soulflow: "🌀",
+  doom: "💀",
+  plating: "🛡️",
+  vigor: "🔥",
+  retain: "📌",
+  barricade: "🧱",
 };
 
 export type Effect =
-  | { op: "damage"; amount: number; hits?: number }
+  | { op: "damage"; amount: number; hits?: number; scaling?: DamageScaling }
   | { op: "block"; amount: number }
   | { op: "apply"; status: StatusType; amount: number; target: EffectTarget }
   | {
@@ -108,14 +182,117 @@ export type Effect =
   | { op: "energy"; amount: number }
   | { op: "heal"; amount: number }
   | { op: "loseHp"; amount: number }
-  | { op: "damageAll"; amount: number }
+  | { op: "damageAll"; amount: number; scaling?: DamageScaling }
   | { op: "addCard"; cardId: string; amount?: number }
   | { op: "exhaustRandom"; amount?: number }
-  | { op: "gainGold"; amount: number };
+  | { op: "gainGold"; amount: number }
+  | { op: "gainStars"; amount: number }
+  | { op: "gainSouls"; amount: number }
+  | { op: "channel"; orb: OrbType }
+  | { op: "evoke"; amount?: number }
+  | { op: "focus"; amount: number }
+  | { op: "orbSlots"; amount: number }
+  | { op: "summon"; hp?: number; damage?: number; name?: string; art?: string }
+  | { op: "healSummon"; amount: number }
+  | { op: "retrieveFromExhaust"; amount?: number }
+  | { op: "discard"; amount?: number }
+  | { op: "forge"; amount?: number }
+  | {
+      op: "addCountdown";
+      turns: number;
+      label: string;
+      icon?: string;
+      effects: Effect[];
+      target?: "player" | "enemies";
+    }
+  | { op: "passive"; hook: PassiveHook; effects: Effect[] }
+  | {
+      op: "retrieveFromDiscard";
+      amount?: number;
+      cardType?: "attack" | "skill" | "power";
+      upgrade?: boolean;
+    }
+  | {
+      op: "addRandomCard";
+      cardType?: "attack" | "skill" | "power";
+      rarity?: CardRarity;
+      to?: "hand" | "discard" | "draw";
+      amount?: number;
+    }
+  | { op: "transformCard"; amount?: number }
+  | { op: "playTopCard" };
+
+// 被动效果触发时机（能力牌注册，与遗物同构、防递归）。
+export type PassiveHook =
+  | "turnStart"
+  | "turnEnd"
+  | "cardPlayed"
+  | "attackPlayed"
+  | "skillPlayed"
+  | "blockGained"
+  | "cardExhausted"
+  | "damageDealt"
+  | "receiveDamage"
+  | "combatEnd"
+  | "shuffle"
+  | "drawCard"
+  | "statusApplied";
+
+export type OrbType = "lightning" | "frost" | "dark" | "glass";
+
+export const ORB_DEFS: Record<OrbType, { name: string; art: string }> = {
+  lightning: { name: "闪电", art: "⚡" },
+  frost: { name: "冰霜", art: "❄️" },
+  dark: { name: "黑暗", art: "🌑" },
+  glass: { name: "玻璃", art: "🪟" },
+};
+
+// 条件增伤：伤害随某计数/数值线性提升（如「每张消耗牌 +3 伤害」）。
+export interface DamageScaling {
+  per:
+    | "exhaustPile"
+    | "block"
+    | "vulnerable"
+    | "attacksPlayed"
+    | "skillsPlayed"
+    | "cardsInHand"
+    | "poisonOnEnemy"
+    | "strikeCards";
+  amount: number;
+}
+
+// 延迟效果（计数器）：若干回合后结算（「下回合 / X 回合后」）。
+export interface PendingEffect {
+  label: string;
+  turns: number;
+  icon?: string;
+  effects: Effect[];
+  target: "player" | "enemies";
+}
+
+export interface OrbState {
+  type: OrbType;
+  // 黑暗/玻璃宝珠的蓄力值（闪电/冰霜不用）。
+  passive: number;
+}
+
+// 亡灵契约师的召唤物（Osty 骷髅左手）：回合开始自动攻击随机敌人。
+export interface SummonState extends CombatUnit {
+  name: string;
+  art?: string;
+  damage: number;
+}
 
 export type CardType = "attack" | "skill" | "power";
 export type CardRarity = "starter" | "common" | "uncommon" | "rare";
 export type CardTarget = "enemy" | "allEnemies" | "self" | "none";
+// 卡面材质（与稀有度解耦）：缺省时按稀有度派生
+// （starter→粗布、common→银、uncommon→合金、rare→合金辉光），
+// gold/foil 为预留的特殊材质（金卡/闪卡）。
+export type CardMaterial = "cloth" | "silver" | "alloy" | "gold" | "foil";
+// 卡面布局：normal = 普通卡（画窗内卡图 + 边框 UI），
+// alt = 异画卡（满版卡图 + 悬浮 UI）。缺省 normal。
+export type CardArtStyle = "normal" | "alt";
 
 // Pools decide where a card can appear. A card without `pools` (or with an
 // empty list) is available everywhere.
@@ -130,9 +307,32 @@ export interface CardData {
   target: CardTarget;
   description: string;
   effects: Effect[];
+  // 卡面材质（可选，缺省按稀有度派生）。
+  material?: CardMaterial;
+  // 卡面布局（普通卡 / 异画卡）。
+  artStyle?: CardArtStyle;
+  // 卡面方案代号（对应 docs/art-card-layout_v4.html 的 A-G 方案，可选）。
+  scheme?: string;
+  // 卡图编号（如 "NO.102"，v4 底部编号条）。
+  number?: string;
+  // 卡图定位参数（v4 画窗微调，渲染层使用）。
+  artScale?: number;
+  artX?: number;
+  artY?: number;
+  // 打出需要的星辰/灵魂（STS2 资源），缺省 0。
+  starsCost?: number;
+  soulsCost?: number;
+  // 奇巧（Sly）：这张牌被弃置时触发的效果。
+  sly?: Effect[];
   pools?: CardPool[];
-  // 游戏版本/拓展包标记（如 "基础版"、"DLC1"），留空 = 基础内容。
+  // 所属角色 id（留空 = 无色，任意角色可用）。
+  character?: string;
+  // 所属拓展包代号（如 STS2 / 未来 DLC 代号），留空 = 基础包。
+  pack?: string;
+  // 游戏版本标记（如 "基础版"、"DLC1"），留空 = 基础内容。
   version?: string;
+  // 风味文案：卡面底部的趣味描述（不参与游戏逻辑）。
+  flavor?: string;
   exhaust?: boolean;
   ethereal?: boolean;
   art?: string;
@@ -167,6 +367,11 @@ export interface EnemyData {
   maxHp: number;
   pattern: EnemyPattern;
   moves: EnemyMove[];
+  // 两帧待机动画名（squish / breathe / rock / sway / bob / hover / float），
+  // 对应 styles.css 的 .enemy-anim-*；留空使用默认浮动。未来像素帧图
+  // 就绪后，anim 可直接映射 sprite sheet 的待机行。
+  anim?: string;
+  pack?: string;
   art?: string;
   color?: string;
   isBoss?: boolean;
@@ -177,6 +382,8 @@ export type RelicTrigger =
   | "turnStart"
   | "turnEnd"
   | "cardPlayed"
+  | "cardExhausted"
+  | "receiveDamage"
   | "damageDealt"
   | "blockGained"
   | "battleEnd";
@@ -193,10 +400,27 @@ export interface RelicData {
   trigger: RelicTrigger;
   effects: Effect[];
   pools?: RelicPool[];
-  // 游戏版本/拓展包标记（如 "基础版"、"DLC1"），留空 = 基础内容。
+  // 所属角色 id（留空 = 通用遗物）。
+  character?: string;
+  // 所属拓展包代号（如 STS2 / 未来 DLC 代号），留空 = 基础包。
+  pack?: string;
+  // 游戏版本标记（如 "基础版"、"DLC1"），留空 = 基础内容。
   version?: string;
   energyBonus?: number;
   drawBonus?: number;
+}
+
+// 角色：决定开局生命/金币/牌组/初始遗物，以及卡牌奖励与商店的可用卡池。
+export interface CharacterData {
+  id: string;
+  name: string;
+  art?: string;
+  color?: string;
+  pack?: string;
+  startingHp: number;
+  startingGold?: number;
+  startingDeck: string[];
+  startingRelics: string[];
 }
 
 // 先古角色：每层第一个节点是「先古事件」，进入后先回血再随机给一件
@@ -218,6 +442,7 @@ export interface EventOption {
   goldCost?: number;
   effects: Effect[];
   addCards?: string[];
+  addPotions?: string[];
   addRelic?: string;
   // Pick one random relic from this id pool (skips relics already owned).
   addRelicPool?: string[];
@@ -252,6 +477,13 @@ export interface StatusMap {
   metallicize?: number;
   intangible?: number;
   artifact?: number;
+  starlight?: number;
+  soulflow?: number;
+  doom?: number;
+  plating?: number;
+  vigor?: number;
+  retain?: number;
+  barricade?: number;
 }
 
 export interface CombatUnit {
@@ -272,6 +504,19 @@ export interface CardInstance {
 export interface PlayerCombatState extends CombatUnit {
   energy: number;
   maxEnergy: number;
+  stars: number;
+  souls: number;
+  focus: number;
+  // 宝珠槽上限（默认 3，电容器等可提升）。
+  orbSlots: number;
+  orbs: OrbState[];
+  summon: SummonState | null;
+  // 已注册的被动效果（能力牌打出时登记）。
+  passives: { hook: PassiveHook; effects: Effect[] }[];
+  // 延迟效果计数器（「下回合 / X 回合后」）。
+  pending: PendingEffect[];
+  attacksPlayedThisTurn: number;
+  skillsPlayedThisTurn: number;
   drawPile: string[];
   hand: string[];
   discardPile: string[];
@@ -281,10 +526,22 @@ export interface PlayerCombatState extends CombatUnit {
   removedPile: string[];
 }
 
+export interface PotionData {
+  id: string;
+  name: string;
+  description: string;
+  art?: string;
+  rarity?: "common" | "uncommon" | "rare";
+  pack?: string;
+  character?: string;
+  effects: Effect[];
+}
+
 export interface EnemyCombatState extends CombatUnit {
   id: string;
   name: string;
   art?: string;
+  anim?: string;
   moveIndex: number;
   isBoss: boolean;
 }
@@ -313,6 +570,9 @@ export interface PlayerRunState {
   gold: number;
   deck: string[];
   relics: string[];
+  potions: string[];
+  // 当前角色 id（决定起始牌组/遗物与卡池过滤）。
+  character?: string;
 }
 
 export type RunStatus =
@@ -328,6 +588,7 @@ export type RunStatus =
   | "defeat";
 
 export interface RunSettings {
+  characterId?: string;
   startingHp?: number;
   startingGold?: number;
   startingDeck?: string[];
@@ -354,4 +615,6 @@ export interface GameDatabase {
   relics: Record<string, RelicData>;
   events: Record<string, EventData>;
   ancients: Record<string, AncientData>;
+  characters: Record<string, CharacterData>;
+  potions: Record<string, PotionData>;
 }

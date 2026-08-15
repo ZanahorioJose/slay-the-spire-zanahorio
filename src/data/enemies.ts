@@ -1,11 +1,13 @@
 import type { EnemyData } from "../core/types";
+import { STS2_PACK } from "../core/types";
 
-export const BASE_ENEMIES: EnemyData[] = [
+export const BASE_ENEMIES: EnemyData[] = ([
   {
     id: "slime",
     name: "小史莱姆",
     maxHp: 18,
     pattern: "loop",
+    anim: "squish",
     art: "🟢",
     color: "#3aa05f",
     moves: [
@@ -20,6 +22,7 @@ export const BASE_ENEMIES: EnemyData[] = [
     name: "蘑菇精",
     maxHp: 22,
     pattern: "loop",
+    anim: "breathe",
     art: "🍄",
     color: "#b0803a",
     moves: [
@@ -34,6 +37,7 @@ export const BASE_ENEMIES: EnemyData[] = [
     name: "荒原狼",
     maxHp: 26,
     pattern: "loop",
+    anim: "rock",
     art: "🐺",
     color: "#8a8a8a",
     moves: [
@@ -47,6 +51,7 @@ export const BASE_ENEMIES: EnemyData[] = [
     name: "劫匪",
     maxHp: 30,
     pattern: "loop",
+    anim: "bob",
     art: "🥷",
     color: "#8a4ab0",
     moves: [
@@ -61,6 +66,7 @@ export const BASE_ENEMIES: EnemyData[] = [
     name: "哥布林萨满",
     maxHp: 24,
     pattern: "random",
+    anim: "sway",
     art: "👺",
     color: "#3aa05f",
     moves: [
@@ -75,6 +81,7 @@ export const BASE_ENEMIES: EnemyData[] = [
     name: "巨型史莱姆",
     maxHp: 60,
     pattern: "loop",
+    anim: "squish",
     art: "🐸",
     color: "#2a7a45",
     moves: [
@@ -90,6 +97,7 @@ export const BASE_ENEMIES: EnemyData[] = [
     name: "黑甲骑士",
     maxHp: 44,
     pattern: "loop",
+    anim: "rock",
     art: "🗿",
     color: "#5a6a8a",
     moves: [
@@ -104,6 +112,7 @@ export const BASE_ENEMIES: EnemyData[] = [
     name: "远古守护者",
     maxHp: 100,
     pattern: "loop",
+    anim: "hover",
     art: "🤖",
     color: "#c0a030",
     isBoss: true,
@@ -120,6 +129,7 @@ export const BASE_ENEMIES: EnemyData[] = [
     name: "深渊巨龙",
     maxHp: 120,
     pattern: "loop",
+    anim: "float",
     art: "🐉",
     color: "#b03030",
     isBoss: true,
@@ -131,4 +141,101 @@ export const BASE_ENEMIES: EnemyData[] = [
       { name: "毁灭吐息", type: "attack", damage: 24 },
     ],
   },
-];
+  // ---- STS2 各层 Boss（数值按现有机制近似） ----
+  {
+    id: "vantom",
+    name: "墨影幽灵",
+    maxHp: 165,
+    pattern: "loop",
+    anim: "hover",
+    art: "🌫️",
+    color: "#5a5a8a",
+    isBoss: true,
+    moves: [
+      { name: "幽影突袭", type: "attack", damage: 13 },
+      { name: "虚影之力", type: "buff", statuses: [{ status: "strength", amount: 2, target: "self" }] },
+      { name: "暗影缠身", type: "debuff", statuses: [{ status: "weak", amount: 2, target: "player" }] },
+      { name: "重影撕扯", type: "attack", damage: 8, hits: 2 },
+    ],
+  },
+  {
+    id: "ceremonial_beast",
+    name: "仪式兽",
+    maxHp: 200,
+    pattern: "loop",
+    anim: "rock",
+    art: "🐗",
+    color: "#8a4a2a",
+    isBoss: true,
+    moves: [
+      { name: "仪式爪击", type: "attack", damage: 10, hits: 2 },
+      { name: "战吼", type: "buff", statuses: [{ status: "strength", amount: 3, target: "self" }] },
+      { name: "腐蚀吐息", type: "debuff", statuses: [{ status: "vulnerable", amount: 2, target: "player" }] },
+      { name: "狂暴冲撞", type: "attack", damage: 20 },
+    ],
+  },
+  {
+    id: "knowledge_demon",
+    name: "知识恶魔",
+    maxHp: 300,
+    pattern: "loop",
+    anim: "sway",
+    art: "👹",
+    color: "#6a3a8a",
+    isBoss: true,
+    moves: [
+      { name: "禁言之环", type: "debuff", statuses: [{ status: "weak", amount: 2, target: "player" }] },
+      { name: "知识冲击", type: "attack", damage: 16 },
+      { name: "智慧升华", type: "buff", statuses: [{ status: "strength", amount: 2, target: "self" }] },
+      { name: "真理碾压", type: "attack", damage: 12, hits: 2 },
+    ],
+  },
+  {
+    id: "kaiser_crab",
+    name: "帝皇蟹",
+    maxHp: 280,
+    pattern: "loop",
+    anim: "rock",
+    art: "🦀",
+    color: "#b04a3a",
+    isBoss: true,
+    moves: [
+      { name: "蟹钳夹击", type: "attack", damage: 9, hits: 2 },
+      { name: "甲壳硬化", type: "defend", block: 14 },
+      { name: "潮汐之力", type: "buff", statuses: [{ status: "strength", amount: 2, target: "self" }] },
+      { name: "螯击", type: "attack", damage: 20 },
+    ],
+  },
+  {
+    id: "queen",
+    name: "女王",
+    maxHp: 320,
+    pattern: "loop",
+    anim: "hover",
+    art: "👸",
+    color: "#c0a030",
+    isBoss: true,
+    moves: [
+      { name: "王权侵蚀", type: "debuff", statuses: [{ status: "frail", amount: 2, target: "player" }] },
+      { name: "裁决", type: "attack", damage: 18 },
+      { name: "王冠之光", type: "buff", statuses: [{ status: "strength", amount: 3, target: "self" }] },
+      { name: "最终判决", type: "attack", damage: 12, hits: 3 },
+    ],
+  },
+  {
+    id: "subject",
+    name: "实验体",
+    maxHp: 300,
+    pattern: "loop",
+    anim: "squish",
+    art: "🧬",
+    color: "#3aa05f",
+    isBoss: true,
+    moves: [
+      { name: "适者生存", type: "buff", statuses: [{ status: "strength", amount: 2, target: "self" }] },
+      { name: "突变爪击", type: "attack", damage: 14 },
+      { name: "细胞分裂", type: "defend", block: 12 },
+      { name: "狂暴形态", type: "attack", damage: 24 },
+    ],
+  },
+] as EnemyData[]).map((e) => ({ ...e, pack: e.pack ?? STS2_PACK }));

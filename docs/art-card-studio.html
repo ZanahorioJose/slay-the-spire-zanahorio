@@ -1,0 +1,2269 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>卡牌美术工作台 · 材质 / 动画 / 布局</title>
+<style>
+  :root {
+    --bg-0: #0d1017;
+    --bg-1: #14171f;
+    --panel: #1a1f2b;
+    --panel-2: #1d2330;
+    --border: #2b3245;
+    --gold: #f0d98a;
+    --gold-deep: #b8953a;
+    --gold-bright: #ffe9b0;
+    --text: #e8e6e3;
+    --text-dim: #8f99ad;
+    --text-faint: #566070;
+    --attack: #c0553f;
+    --skill: #4f7fc4;
+    --power: #8a5fc0;
+    --type-color: #c0553f;
+    --rarity-color: #9aa3b5;
+    --rarity-glow: rgba(154,163,181,0.35);
+    --gloss-a: 0.75;
+    --mat-gloss: 0.75;
+    --sparkle-a: 0.75;
+    --art-film: 1;
+    --frame-film: 0.22;
+    --holo-opacity: 0.72;
+    /* ---- 全息参数体系（宝可梦全息，参考 simeydotme/pokemon-cards-css cosmos/regular holo） ---- */
+    --holo-stripes: #ffd166, #ff6b6b, #c56cf0, #3ae374, #18dcff, #ffd166;
+    --holo-angle: 82deg;
+    --holo-period: 4;
+    --holo-parallax: 2.6;
+    --holo-sat: 1.15;
+    --holo-bright: 1.05;
+    --holo-contrast: 1.75;
+    --holo-blur: 0px;
+    --bx: 50%;
+    --by: 50%;
+    --holo-mesh: transparent;
+    --holo-mesh-size: 100% 100%;
+    --holo-mesh-pos: center center;
+    --holo-mesh-blend: normal;
+    --holo-sub-mix: overlay;
+    --holo-sub-a: 0.65;
+    --holo-mix: color-dodge;
+    --spot-a: 0.55;
+    --spot-size: 1;
+    --gloss-angle: 115deg;
+    --gloss-blur: 6px;
+    --gloss-width: 50%;
+    --sparkle-size: 1;
+    --sparkle-tile: 130px;
+    --sparkle-speed: 2.2s;
+    --shine-a: 0.8;
+    --tilt-amt: 14deg;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: radial-gradient(ellipse at 50% 0%, #1a2130 0%, var(--bg-0) 70%);
+    color: var(--text);
+    font-family: "PingFang SC", "Microsoft YaHei", sans-serif;
+    padding: 36px 32px 70px;
+    min-height: 100vh;
+  }
+
+  h1 { font-size: 24px; letter-spacing: 2px; color: var(--gold); }
+  h1 small { font-size: 13px; color: var(--text-dim); letter-spacing: 0; margin-left: 10px; }
+  .sub { color: var(--text-dim); font-size: 13px; margin-top: 10px; line-height: 1.8; max-width: 1280px; }
+  h2 { font-size: 15px; margin: 20px 0 12px; color: var(--gold); letter-spacing: 1px; }
+  code { background: rgba(255,255,255,0.07); padding: 1px 5px; border-radius: 4px; }
+
+  .hero-row { display: flex; gap: 28px; align-items: flex-start; flex-wrap: wrap; margin-top: 26px; }
+
+  /* ---------- 舞台 ---------- */
+  .stage {
+    position: relative;
+    width: 340px;
+    height: 470px;
+    border-radius: 16px;
+    background: radial-gradient(ellipse at 50% 45%, #1d2434 0%, #0f1219 75%);
+    border: 1px solid var(--border);
+    perspective: 950px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+  }
+  .stage::before {
+    content: "";
+    position: absolute;
+    width: 200px; height: 200px;
+    left: 12%; top: 18%;
+    border-radius: 50%;
+    background: radial-gradient(circle, rgba(224,106,90,0.40), transparent 70%);
+    filter: blur(18px);
+    z-index: 0;
+  }
+  .stage::after {
+    content: "";
+    position: absolute;
+    width: 220px; height: 220px;
+    right: 8%; bottom: 12%;
+    border-radius: 50%;
+    background: radial-gradient(circle, rgba(79,127,196,0.40), transparent 70%);
+    filter: blur(18px);
+    z-index: 0;
+  }
+  .card-shadow {
+    position: absolute;
+    left: 7%; right: 7%;
+    bottom: 22px;
+    height: 46px;
+    border-radius: 50%;
+    background: radial-gradient(ellipse at center, rgba(0,0,0,0.72), transparent 68%);
+    filter: blur(12px);
+    transform:
+      translateX(calc(var(--shadow-x, 0) * 14px))
+      scaleX(calc(1 - var(--shadow-y, 0) * 0.10));
+    z-index: 0;
+    pointer-events: none;
+    transition: transform 0.35s ease;
+  }
+
+  .card3d {
+    position: relative;
+    width: 250px;
+    height: 350px;
+    transform-style: preserve-3d;
+    transform: rotateX(var(--rx, 0deg)) rotateY(var(--ry, 0deg));
+    will-change: transform;
+    z-index: 1;
+  }
+
+  .card {
+    position: relative;
+    width: 250px;
+    height: 350px;
+    border-radius: 16px;
+    transform-style: flat;
+  }
+
+  /* ---------- 卡面底版 ---------- */
+  .face {
+    position: absolute;
+    inset: 0;
+    border: 3px solid transparent;
+    border-radius: 16px;
+    background:
+      linear-gradient(160deg,
+        color-mix(in srgb, var(--type-color, #888) 65%, #cfd6e4) 0%,
+        color-mix(in srgb, var(--type-color, #888) 38%, #20242e) 45%,
+        #141821 100%) border-box;
+    box-shadow:
+      inset 0 0 0 1px rgba(255,255,255,0.10),
+      0 18px 42px rgba(0,0,0,0.55);
+    overflow: hidden;
+  }
+  .face::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: 13px;
+    background:
+      radial-gradient(ellipse 120% 70% at 50% 0%, color-mix(in srgb, var(--type-color, #888) 22%, transparent), transparent 62%),
+      linear-gradient(160deg, #232837 0%, #181c28 55%, #10131b 100%);
+    box-shadow:
+      inset 0 0 0 1px rgba(255,255,255,0.07),
+      inset 0 -24px 36px rgba(0,0,0,0.42),
+      inset 0 8px 16px rgba(255,255,255,0.04);
+  }
+
+  /* ---------- 版式元素（浮雕 bevel：该凸的凸、该凹的凹，光源统一左上） ---------- */
+  /* 左上费用数字：凸起 */
+  .cost {
+    position: absolute;
+    width: 34px; height: 34px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 19px;
+    font-weight: 800;
+    color: #fff;
+    text-shadow: 0 1px 2px rgba(0,0,0,0.8);
+    background:
+      radial-gradient(circle at 32% 28%, #6b7280, #1b202b 55%, #0c0f16 80%),
+      radial-gradient(circle at 50% 50%, rgba(240,217,138,0.45), transparent 72%);
+    border: 2px solid #e9d99a;
+    box-shadow:
+      inset 1px 1px 2px rgba(255,255,255,0.55),
+      inset -1px -2px 3px rgba(0,0,0,0.45),
+      0 0 0 2px rgba(0,0,0,0.35),
+      1px 2px 4px rgba(0,0,0,0.65),
+      0 0 10px rgba(240,217,138,0.25);
+    z-index: 8;
+  }
+  .name {
+    position: absolute;
+    left: 44px; right: 44px;
+    font-size: 16px;
+    font-weight: 800;
+    letter-spacing: 2px;
+    text-align: center;
+    color: #f4f1ea;
+    text-shadow: 0 1px 3px rgba(0,0,0,0.9), 0 0 12px rgba(0,0,0,0.45);
+    z-index: 7;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  /* 右上类型宝石：凸起 */
+  .type-gem {
+    position: absolute;
+    width: 26px; height: 26px;
+    transform: rotate(45deg);
+    background:
+      linear-gradient(160deg, var(--type-color, #888), color-mix(in srgb, var(--type-color, #888) 40%, #0b0e15));
+    border: 1px solid rgba(255,255,255,0.4);
+    box-shadow:
+      inset 1px 1px 2px rgba(255,255,255,0.55),
+      inset -1px -2px 3px rgba(0,0,0,0.5),
+      0 0 0 2px rgba(0,0,0,0.3),
+      1px 2px 4px rgba(0,0,0,0.6);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 8;
+  }
+  .type-icon { transform: rotate(-45deg); font-size: 14px; filter: drop-shadow(0 1px 1px rgba(0,0,0,0.7)); }
+
+  /* 画窗外框层：银框由 padding 环承担，和图片层用同心的 clip-path 形状，
+     五边形/椭圆斜边上的银框就不会被裁掉 */
+  .art-frame {
+    position: absolute;
+    border-radius: 10px;
+    padding: 2px;
+    background:
+      linear-gradient(160deg, rgba(255,255,255,0.65), rgba(200,208,220,0.40) 45%, rgba(130,140,158,0.65)),
+      #dbe2ec;
+    box-shadow:
+      0 0 0 1px rgba(0,0,0,0.55),
+      0 3px 9px rgba(0,0,0,0.45);
+    z-index: 3;
+  }
+  .art-frame::before {
+    content: "";
+    position: absolute;
+    top: 0; left: 0;
+    width: 20px; height: 20px;
+    border-top: 2px solid rgba(240,217,138,0.8);
+    border-left: 2px solid rgba(240,217,138,0.8);
+    border-top-left-radius: 6px;
+    z-index: 5;
+    pointer-events: none;
+  }
+  .art-frame::after {
+    content: "";
+    position: absolute;
+    bottom: 0; right: 0;
+    width: 20px; height: 20px;
+    border-bottom: 2px solid rgba(240,217,138,0.8);
+    border-right: 2px solid rgba(240,217,138,0.8);
+    border-bottom-right-radius: 6px;
+    z-index: 5;
+    pointer-events: none;
+  }
+  /* 图片层：紧贴银框内侧，clip-path 与 frame 同形状（同心缩小） */
+  .art-window {
+    position: absolute;
+    inset: 2px;
+    border-radius: 8px;
+    overflow: hidden;
+    touch-action: none;
+    background:
+      linear-gradient(180deg, rgba(0,0,0,0.35), rgba(0,0,0,0.12)),
+      radial-gradient(ellipse at 50% 100%, #20283a 0%, #0e1119 75%);
+    box-shadow: inset 0 3px 14px rgba(0,0,0,0.7);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .art-window canvas.pixel-art { width: 128px; height: 128px; image-rendering: pixelated; }
+  .art-window canvas.scene-art { width: 100%; height: 100%; object-fit: cover; }
+  .art-window img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    image-rendering: auto;
+  }
+  .art-window img,
+  .art-window canvas {
+    transform: translate(var(--art-x, 0px), var(--art-y, 0px)) scale(var(--art-scale, 1));
+    cursor: grab;
+  }
+  .art-window.dragging img,
+  .art-window.dragging canvas { cursor: grabbing; }
+
+  /* 下方文字板块：凹陷嵌印（文字保持平面） */
+  .desc {
+    position: absolute;
+    border-radius: 10px;
+    padding: 9px 12px;
+    background: linear-gradient(180deg, rgba(64,74,98,0.72), rgba(46,56,78,0.54));
+    border: 1px solid rgba(255,255,255,0.24);
+    box-shadow:
+      inset 2px 3px 8px rgba(0,0,0,0.45),
+      inset -2px -2px 5px rgba(255,255,255,0.10),
+      0 1px 0 rgba(255,255,255,0.07);
+    font-size: 12px;
+    line-height: 1.5;
+    color: #e8e6e3;
+    text-align: center;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+    z-index: 6;
+  }
+
+  /* 底部信息条：编号 + 类型 + 稀有度，给卡面留出空间 */
+  .info-strip {
+    position: absolute;
+    left: 0; right: 0;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 16px;
+    font-size: 9px;
+    letter-spacing: 1px;
+    color: rgba(255,255,255,0.72);
+    text-shadow: 0 1px 3px rgba(0,0,0,0.9);
+    z-index: 7;
+    pointer-events: none;
+  }
+  .info-strip .info-id { font-family: Consolas, monospace; opacity: 0.85; }
+  .info-strip .info-type { display: flex; align-items: center; gap: 5px; }
+  .info-strip .info-rarity {
+    width: 9px; height: 9px;
+    transform: rotate(45deg);
+    background: var(--rarity-color);
+    box-shadow: 0 0 6px var(--rarity-glow);
+    margin-left: 5px;
+  }
+
+  /* 稀有度宝石：菱形切面（左上受光亮面 + 右下背光暗面 + 中间主色），光源统一左上 */
+  .rarity-gem {
+    position: absolute;
+    left: 50%;
+    width: 18px; height: 18px;
+    margin-left: -9px;
+    transform: rotate(45deg);
+    background:
+      linear-gradient(180deg, color-mix(in srgb, var(--rarity-color) 90%, #fff) 0%, var(--rarity-color) 46%, color-mix(in srgb, var(--rarity-color) 38%, #000) 100%);
+    box-shadow:
+      0 0 12px var(--rarity-glow, rgba(255,255,255,0.35)),
+      0 0 0 1px rgba(0,0,0,0.55),
+      inset 0 1px 2px rgba(255,255,255,0.6);
+    z-index: 7;
+    pointer-events: none;
+  }
+  /* 左上受光切面：台面反光 */
+  .rarity-gem::before {
+    content: "";
+    position: absolute;
+    top: 0; left: 0;
+    width: 56%; height: 56%;
+    background: linear-gradient(135deg, rgba(255,255,255,0.95) 0%, rgba(255,255,255,0.06) 100%);
+    clip-path: polygon(0 0, 100% 0, 0 100%);
+  }
+  /* 右下背光切面：底面阴影 */
+  .rarity-gem::after {
+    content: "";
+    position: absolute;
+    bottom: 0; right: 0;
+    width: 52%; height: 52%;
+    background: rgba(0,0,0,0.32);
+    clip-path: polygon(100% 100%, 100% 0, 0 100%);
+  }
+
+  .up-badge {
+    position: absolute;
+    top: 5px; right: 6px;
+    width: 20px; height: 20px;
+    border-radius: 50%;
+    background: radial-gradient(circle at 32% 28%, #fff6d8, #f0c95a 60%, #8a6a1e);
+    color: #2a1e06;
+    font-size: 14px;
+    font-weight: 900;
+    line-height: 20px;
+    text-align: center;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.7), 0 0 8px rgba(240,201,90,0.55);
+    z-index: 9;
+    display: none;
+  }
+  .up-badge.show { display: block; }
+
+  /* ================= 全息层（默认关闭，勾选"预览全息"开启） ================= */
+  .holo {
+    position: absolute;
+    inset: 0;
+    border-radius: 15px;
+    overflow: hidden;
+    pointer-events: none;
+    z-index: 4;
+    opacity: 0;
+  }
+  .foil-on .holo-film {
+    opacity: var(--holo-opacity, 0.72);
+    mix-blend-mode: var(--holo-mix, color-dodge);
+    filter: brightness(var(--holo-bright, 1.05)) contrast(var(--holo-contrast, 1.75)) saturate(var(--holo-sat, 1.15)) blur(var(--holo-blur, 0px));
+  }
+  .foil-on .holo-gloss { opacity: var(--gloss-a, 0.75); mix-blend-mode: var(--holo-mix, color-dodge); }
+  .foil-on .holo-sparkles { opacity: var(--sparkle-a, 0.75); mix-blend-mode: var(--holo-mix, color-dodge); }
+  .foil-on .holo-shine { opacity: var(--shine-a, 0.8); mix-blend-mode: soft-light; }
+
+  /* 主膜层：平滑彩虹箔纸（repeating-linear-gradient，颜色间自然过渡无硬边），
+     可叠加第二张网格纹理（--holo-mesh，radiant 等预设用）；位置随鼠标视差滑动。
+     图案不旋转、不漂移——"光在动"由 background-position 承担（pokemon-cards-css 技法） */
+  .holo-film {
+    background-image:
+      repeating-linear-gradient(var(--holo-angle, 82deg), var(--holo-stripes)),
+      var(--holo-mesh, transparent);
+    background-size:
+      calc(var(--holo-period, 4) * 100%) calc(var(--holo-period, 4) * 225%),
+      var(--holo-mesh-size, 100% 100%);
+    background-position:
+      calc((50% - var(--bx, 50%)) * var(--holo-parallax, 2.6) + 50%)
+      calc((50% - var(--by, 50%)) * calc(var(--holo-parallax, 2.6) * 1.35) + 50%),
+      var(--holo-mesh-pos, center center);
+    background-blend-mode: normal, var(--holo-mesh-blend, normal);
+  }
+  .holo-film::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    /* 副膜层：同款彩虹、角度错开 10°，视差速率只有主层约 6 成 → 前后分层产生箔纸深度；
+       混合模式按预设可换（如 amazing 用 saturation） */
+    background-image: repeating-linear-gradient(calc(var(--holo-angle, 82deg) + 10deg), var(--holo-stripes));
+    background-size: calc(var(--holo-period, 4) * 100%) calc(var(--holo-period, 4) * 225%);
+    background-position:
+      calc((50% - var(--bx, 50%)) * calc(var(--holo-parallax, 2.6) * 0.6) + 50%)
+      calc((50% - var(--by, 50%)) * calc(var(--holo-parallax, 2.6) * 0.8) + 50%);
+    mix-blend-mode: var(--holo-sub-mix, overlay);
+    opacity: var(--holo-sub-a, 0.65);
+  }
+  .holo-film::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    /* 眩光层（glare）：径向高光跟随鼠标，强度随"离卡中心距离"变化（pokemon-cards-css） */
+    background: radial-gradient(farthest-corner circle at var(--lx, 50%) var(--ly, 50%),
+      hsla(0, 0%, 100%, var(--spot-a, 0.55)) 5%,
+      hsla(0, 0%, 78%, calc(var(--spot-a, 0.55) * 0.35)) 30%,
+      hsl(0, 0%, 0%) 120%);
+    background-size: calc(100% * var(--spot-size, 1)) calc(100% * var(--spot-size, 1));
+    mix-blend-mode: overlay;
+    opacity: calc(0.3 + var(--pointer-from-center, 0.5) * 0.7);
+  }
+  .holo-gloss::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(var(--gloss-angle, 115deg),
+      transparent 0%,
+      rgba(255,255,255,0.25) 18%,
+      rgba(255,255,255,0.75) var(--gloss-width, 50%),
+      rgba(255,255,255,0.25) calc(var(--gloss-width, 50%) + 32%),
+      transparent 100%);
+    filter: blur(var(--gloss-blur, 6px));
+    transform: translateX(var(--sweep-x, -300px));
+  }
+  .holo-sparkles::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background-image:
+      radial-gradient(circle calc(1.5px * var(--sparkle-size, 1)) at 18% 28%, #fff, transparent calc(2.5px * var(--sparkle-size, 1))),
+      radial-gradient(circle calc(2px * var(--sparkle-size, 1)) at 74% 55%, #fff, transparent calc(3px * var(--sparkle-size, 1))),
+      radial-gradient(circle calc(1.2px * var(--sparkle-size, 1)) at 42% 72%, #fff, transparent calc(2px * var(--sparkle-size, 1))),
+      radial-gradient(circle calc(1.8px * var(--sparkle-size, 1)) at 88% 24%, #fff, transparent calc(2.8px * var(--sparkle-size, 1))),
+      radial-gradient(circle calc(1.2px * var(--sparkle-size, 1)) at 58% 12%, #fff, transparent calc(2px * var(--sparkle-size, 1))),
+      radial-gradient(circle calc(1.5px * var(--sparkle-size, 1)) at 28% 88%, #fff, transparent calc(2.5px * var(--sparkle-size, 1))),
+      radial-gradient(circle calc(1px * var(--sparkle-size, 1)) at 8% 55%, #fff, transparent calc(1.8px * var(--sparkle-size, 1))),
+      radial-gradient(circle calc(1.8px * var(--sparkle-size, 1)) at 66% 82%, #fff, transparent calc(2.8px * var(--sparkle-size, 1)));
+    background-size: var(--sparkle-tile, 130px) var(--sparkle-tile, 130px);
+    background-repeat: repeat;
+    animation: twinkle var(--sparkle-speed, 2.2s) ease-in-out infinite alternate;
+  }
+  .holo-shine {
+    background:
+      linear-gradient(160deg, rgba(255,255,255,0.10), transparent 38%),
+      linear-gradient(340deg, rgba(255,255,255,0.05), transparent 45%);
+  }
+
+  /* 普通卡方案：画面区膜最厚（全息主角是画），边框只留轻镀膜；
+     扫光与星星保持整卡（mask 几何 = 该方案的画窗位置） */
+  .holo-film {
+    --af-top: 30px; --af-left: 14px; --af-w: 222px; --af-h: 170px;
+    -webkit-mask:
+      linear-gradient(rgba(0,0,0,var(--frame-film, 0.22)), rgba(0,0,0,var(--frame-film, 0.22))) 0 0 / 100% var(--af-top) no-repeat,
+      linear-gradient(rgba(0,0,0,var(--frame-film, 0.22)), rgba(0,0,0,var(--frame-film, 0.22))) 0 100% / 100% calc(100% - var(--af-top) - var(--af-h)) no-repeat,
+      linear-gradient(rgba(0,0,0,var(--frame-film, 0.22)), rgba(0,0,0,var(--frame-film, 0.22))) 0 0 / var(--af-left) 100% no-repeat,
+      linear-gradient(rgba(0,0,0,var(--frame-film, 0.22)), rgba(0,0,0,var(--frame-film, 0.22))) 100% 0 / var(--af-left) 100% no-repeat,
+      linear-gradient(rgba(0,0,0,var(--art-film, 1)), rgba(0,0,0,var(--art-film, 1))) var(--af-left) var(--af-top) / var(--af-w) var(--af-h) no-repeat;
+    mask:
+      linear-gradient(rgba(0,0,0,var(--frame-film, 0.22)), rgba(0,0,0,var(--frame-film, 0.22))) 0 0 / 100% var(--af-top) no-repeat,
+      linear-gradient(rgba(0,0,0,var(--frame-film, 0.22)), rgba(0,0,0,var(--frame-film, 0.22))) 0 100% / 100% calc(100% - var(--af-top) - var(--af-h)) no-repeat,
+      linear-gradient(rgba(0,0,0,var(--frame-film, 0.22)), rgba(0,0,0,var(--frame-film, 0.22))) 0 0 / var(--af-left) 100% no-repeat,
+      linear-gradient(rgba(0,0,0,var(--frame-film, 0.22)), rgba(0,0,0,var(--frame-film, 0.22))) 100% 0 / var(--af-left) 100% no-repeat,
+      linear-gradient(rgba(0,0,0,var(--art-film, 1)), rgba(0,0,0,var(--art-film, 1))) var(--af-left) var(--af-top) / var(--af-w) var(--af-h) no-repeat;
+  }
+  .holo-gloss, .holo-sparkles {
+    -webkit-mask: none;
+    mask: none;
+  }
+
+  @keyframes twinkle { from { opacity: 0.18; } to { opacity: 0.95; } }
+
+  /* ================= 方案 A：经典大画窗 ================= */
+  .scheme-a .art-frame { top: 30px; left: 14px; width: 222px; height: 170px; }
+  .scheme-a .name { top: 7px; }
+  .scheme-a .cost { top: 10px; left: 10px; }
+  .scheme-a .type-gem { top: 11px; right: 11px; }
+  .scheme-a .desc { left: 16px; width: 218px; bottom: 46px; height: 76px; }
+  .scheme-a .info-strip { bottom: 9px; }
+  .scheme-a .rarity-gem { width: 24px; height: 24px; margin-left: -12px; top: 212px; }
+  .scheme-a .holo-film, .scheme-a .holo-gloss, .scheme-a .holo-sparkles {
+    --af-top: 30px; --af-left: 14px; --af-w: 222px; --af-h: 170px;
+  }
+
+  /* ================= 方案 B：全宽无框画 ================= */
+  .scheme-b .art-frame {
+    top: 22px; left: 0; width: 250px; height: 180px;
+    background: none; padding: 0; border-radius: 0;
+    box-shadow: none;
+  }
+  .scheme-b .art-window { inset: 0; box-shadow: inset 0 20px 30px rgba(0,0,0,0.38), inset 0 -20px 30px rgba(0,0,0,0.38); }
+  .scheme-b .art-frame::before, .scheme-b .art-frame::after { display: none; }
+  .scheme-b .name { top: 10px; font-size: 17px; text-shadow: 0 2px 8px rgba(0,0,0,0.95); }
+  .scheme-b .cost { top: 10px; left: 10px; }
+  .scheme-b .type-gem { top: 11px; right: 11px; }
+  .scheme-b .desc { left: 16px; width: 218px; bottom: 46px; height: 76px; }
+  .scheme-b .info-strip { bottom: 9px; }
+  .scheme-b .rarity-gem { width: 24px; height: 24px; margin-left: -12px; top: 212px; }
+  .scheme-b .holo-film, .scheme-b .holo-gloss, .scheme-b .holo-sparkles {
+    --af-top: 22px; --af-left: 0px; --af-w: 250px; --af-h: 180px;
+  }
+
+  /* ================= 方案 C：纵向三段 ================= */
+  .scheme-c .art-frame { top: 28px; left: 12px; width: 226px; height: 168px; }
+  .scheme-c .name { top: 8px; }
+  .scheme-c .cost { top: 10px; left: 10px; }
+  .scheme-c .type-gem { top: 11px; right: 11px; }
+  .scheme-c .desc { left: 18px; width: 214px; bottom: 46px; height: 82px; }
+  .scheme-c .info-strip { bottom: 10px; }
+  .scheme-c .rarity-gem { width: 24px; height: 24px; margin-left: -12px; top: 206px; }
+  .scheme-c .holo-film, .scheme-c .holo-gloss, .scheme-c .holo-sparkles {
+    --af-top: 28px; --af-left: 12px; --af-w: 226px; --af-h: 168px;
+  }
+
+  /* ================= 方案 D：极简留白（画幅最大） ================= */
+  .scheme-d .art-frame {
+    top: 22px; left: 10px; width: 230px; height: 198px;
+    padding: 1px;
+    background: linear-gradient(160deg, rgba(255,255,255,0.5), rgba(160,170,186,0.35));
+    box-shadow: 0 0 0 2px rgba(0,0,0,0.35);
+  }
+  .scheme-d .art-window { inset: 1px; box-shadow: inset 0 3px 14px rgba(0,0,0,0.6); }
+  .scheme-d .art-frame::before, .scheme-d .art-frame::after { display: none; }
+  .scheme-d .name { top: 8px; font-size: 15px; }
+  .scheme-d .cost { top: 8px; left: 8px; }
+  .scheme-d .type-gem { top: 9px; right: 9px; }
+  .scheme-d .desc { left: 18px; width: 214px; bottom: 44px; height: 66px; }
+  .scheme-d .info-strip { bottom: 8px; }
+  .scheme-d .rarity-gem { width: 24px; height: 24px; margin-left: -12px; top: 224px; }
+  .scheme-d .holo-film, .scheme-d .holo-gloss, .scheme-d .holo-sparkles {
+    --af-top: 22px; --af-left: 10px; --af-w: 230px; --af-h: 198px;
+  }
+
+  /* ================= 类型画窗形状：攻击=圆角矩形 / 技能=五边形 / 能力=椭圆 ================= */
+  .shape-pentagon .art-frame,
+  .shape-pentagon .art-window {
+    clip-path: polygon(0 0, 100% 0, 100% 76%, 50% 100%, 0 76%);
+  }
+  .shape-pentagon .art-frame {
+    box-shadow: none;
+    filter: drop-shadow(0 0 0 1px rgba(0,0,0,0.55)) drop-shadow(0 3px 8px rgba(0,0,0,0.5));
+  }
+  .shape-pentagon .art-frame::before,
+  .shape-pentagon .art-frame::after { display: none; }
+  .shape-pentagon .holo-film,
+  .shape-pentagon .holo-gloss,
+  .shape-pentagon .holo-sparkles {
+    -webkit-mask: none;
+    mask: none;
+  }
+
+  .shape-ellipse .art-frame,
+  .shape-ellipse .art-window {
+    clip-path: ellipse(50% 47% at 50% 50%);
+  }
+  .shape-ellipse .art-frame {
+    box-shadow: none;
+    filter: drop-shadow(0 0 0 1px rgba(0,0,0,0.55)) drop-shadow(0 3px 8px rgba(0,0,0,0.5));
+  }
+  .shape-ellipse .art-frame::before,
+  .shape-ellipse .art-frame::after { display: none; }
+  .shape-ellipse .holo-film,
+  .shape-ellipse .holo-gloss,
+  .shape-ellipse .holo-sparkles {
+    -webkit-mask: none;
+    mask: none;
+  }
+
+  /* 异画卡保持满版矩形，不被类型形状裁剪 */
+  .scheme-e .art-frame,
+  .scheme-e .art-window,
+  .scheme-f .art-frame,
+  .scheme-f .art-window,
+  .scheme-g .art-frame,
+  .scheme-g .art-window {
+    clip-path: none !important;
+    filter: none !important;
+  }
+
+  /* 异画卡亮底：膜 / 扫光 / 星星自动切 overlay（保留底纹、不发白）；
+     在控制台手动选了混合模式（body.mix-manual）时，以手动为准 */
+  body:not(.mix-manual).alt-mode .foil-on .holo-film,
+  body:not(.mix-manual).alt-mode .foil-on .holo-gloss,
+  body:not(.mix-manual).alt-mode .foil-on .holo-sparkles {
+    --holo-mix: overlay;
+  }
+  /* 异画卡整卡都是图片，"图片处全息厚度"无意义，隐藏 */
+  .alt-mode #artFilmRow,
+  .alt-mode #frameFilmRow { display: none; }
+
+  /* ================= 异画 E：满版异画 · 悬浮 UI ================= */
+  .scheme-e .art-frame {
+    top: 0; left: 0; width: 250px; height: 350px;
+    background: none; padding: 0; border-radius: 16px;
+    box-shadow: none;
+  }
+  .scheme-e .art-window { inset: 0; box-shadow: inset 0 0 60px rgba(0,0,0,0.35); }
+  .scheme-e .art-frame::before, .scheme-e .art-frame::after { display: none; }
+  .scheme-e .name { top: 16px; font-size: 18px; text-shadow: 0 2px 10px rgba(0,0,0,0.95); }
+  .scheme-e .cost { top: 12px; left: 12px; }
+  .scheme-e .type-gem { top: 13px; right: 13px; }
+  .scheme-e .desc {
+    left: 18px; width: 214px; bottom: 36px; height: 64px;
+    background: linear-gradient(180deg, rgba(58,70,96,0.66), rgba(44,54,76,0.50));
+    backdrop-filter: blur(4px);
+    -webkit-backdrop-filter: blur(4px);
+  }
+  .scheme-e .info-strip { bottom: 10px; }
+  .scheme-e .rarity-gem { width: 22px; height: 22px; margin-left: -11px; top: 234px; }
+  .scheme-e .holo-film, .scheme-e .holo-gloss, .scheme-e .holo-sparkles {
+    -webkit-mask: none;
+    mask: none;
+  }
+
+  /* ================= 异画 F：满版异画 · 极简角标 ================= */
+  .scheme-f .art-frame {
+    top: 0; left: 0; width: 250px; height: 350px;
+    background: none; padding: 0; border-radius: 16px;
+    box-shadow: none;
+  }
+  .scheme-f .art-window { inset: 0; box-shadow: inset 0 0 70px rgba(0,0,0,0.45); }
+  .scheme-f .art-frame::before, .scheme-f .art-frame::after { display: none; }
+  .scheme-f .name { display: none; }
+  .scheme-f .cost { top: 12px; left: 12px; }
+  .scheme-f .type-gem { top: 13px; right: 13px; }
+  .scheme-f .desc {
+    left: 16px; width: 180px; bottom: 34px; height: 48px;
+    font-size: 11px;
+    background: linear-gradient(180deg, rgba(58,70,96,0.62), rgba(44,54,76,0.46));
+    backdrop-filter: blur(4px);
+    -webkit-backdrop-filter: blur(4px);
+  }
+  .scheme-f .info-strip { bottom: 10px; }
+  .scheme-f .rarity-gem { width: 22px; height: 22px; margin-left: -11px; top: 252px; }
+  .scheme-f .info-strip .info-type,
+  .scheme-f .info-strip .info-rarity { display: none; }
+  .scheme-f .holo-film, .scheme-f .holo-gloss, .scheme-f .holo-sparkles {
+    -webkit-mask: none;
+    mask: none;
+  }
+
+  /* ================= 异画 G：满版异画 · 金框 ================= */
+  .scheme-g .art-frame {
+    top: 0; left: 0; width: 250px; height: 350px;
+    background: linear-gradient(160deg, #fff3c4, #f0c95a 45%, #b8953a);
+    padding: 3px;
+    border-radius: 13px;
+    box-shadow: 0 0 0 1px rgba(0,0,0,0.85);
+  }
+  .scheme-g .art-window {
+    inset: 3px;
+    border-radius: 10px;
+    box-shadow: inset 0 0 0 1px rgba(255,255,255,0.22);
+  }
+  .scheme-g .art-frame::before, .scheme-g .art-frame::after { display: none; }
+  .scheme-g .name {
+    top: 16px;
+    background: linear-gradient(180deg, #fff7d6, #f0c95a);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+    text-shadow: 0 2px 8px rgba(0,0,0,0.95);
+  }
+  .scheme-g .cost { top: 12px; left: 12px; }
+  .scheme-g .type-gem { top: 13px; right: 13px; }
+  .scheme-g .desc {
+    left: 18px; width: 214px; bottom: 40px; height: 66px;
+    background: linear-gradient(180deg, rgba(58,70,96,0.66), rgba(44,54,76,0.50));
+    backdrop-filter: blur(4px);
+    -webkit-backdrop-filter: blur(4px);
+  }
+  .scheme-g .info-strip { bottom: 12px; }
+  .scheme-g .rarity-gem { width: 22px; height: 22px; margin-left: -11px; top: 228px; }
+  .scheme-g .holo-film, .scheme-g .holo-gloss, .scheme-g .holo-sparkles {
+    -webkit-mask: none;
+    mask: none;
+  }
+
+  /* ---------- 控制区 ---------- */
+  .controls { width: 340px; }
+  .controls h2 { margin: 16px 0 10px; font-size: 14px; }
+  .btn-row { display: flex; flex-wrap: wrap; gap: 8px; }
+  .btn {
+    font-family: inherit; font-size: 12px; cursor: pointer;
+    padding: 7px 13px; border-radius: 7px;
+    color: var(--text-dim);
+    background: var(--panel-2);
+    border: 1px solid var(--border);
+    transition: all 0.12s ease;
+  }
+  .btn:hover { color: var(--text); border-color: var(--silver); }
+  .btn.active {
+    color: #1b160a; font-weight: bold;
+    background: linear-gradient(180deg, var(--gold-bright), var(--gold) 45%, var(--gold-deep));
+    border-color: var(--gold-bright);
+  }
+  .controls label {
+    display: flex; align-items: center; justify-content: space-between; gap: 12px;
+    font-size: 12px; color: var(--text-dim); margin-bottom: 6px;
+  }
+  .controls label.check { justify-content: flex-start; gap: 8px; }
+  .controls input[type="range"] { flex: 1; accent-color: var(--gold); }
+  .controls input[type="text"] {
+    flex: 1;
+    background: #12151d;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    color: var(--text);
+    font-size: 12px;
+    padding: 5px 9px;
+  }
+  .controls label span.val { width: 44px; text-align: right; color: var(--gold); font-size: 11px; }
+  .controls details {
+    border: 1px solid var(--border);
+    border-radius: 9px;
+    background: var(--panel);
+    padding: 8px 11px;
+    margin-bottom: 8px;
+  }
+  .controls summary {
+    cursor: pointer;
+    font-size: 12px;
+    font-weight: bold;
+    color: var(--gold);
+    letter-spacing: 1px;
+    user-select: none;
+  }
+  .controls details[open] summary { margin-bottom: 8px; }
+  .controls details .grp { display: flex; flex-direction: column; gap: 2px; }
+  .controls select {
+    flex: 1;
+    background: #12151d;
+    border: 1px solid var(--border);
+    color: var(--text);
+    font-size: 12px;
+    padding: 5px 8px;
+    border-radius: 6px;
+  }
+  .preset-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    padding: 5px 10px;
+  }
+  .preset-btn i {
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    border: 1px solid rgba(255,255,255,0.4);
+    flex: none;
+  }
+  .preset-group-label {
+    font-size: 11px;
+    color: var(--text-faint);
+    letter-spacing: 1px;
+    margin: 8px 0 4px;
+    border-bottom: 1px dashed var(--border);
+    padding-bottom: 3px;
+  }
+  .preset-group-label:first-child { margin-top: 0; }
+  .hint { font-size: 11px; color: var(--text-faint); line-height: 1.7; margin-top: 4px; }
+
+  /* ---------- 右侧方案画廊 ---------- */
+  .side-col { flex: 1 1 480px; min-width: 440px; }
+  .side-col h2 { margin: 14px 0 10px; }
+  .side-col h2:first-child { margin-top: 0; }
+  .scheme-group-label {
+    font-size: 12px;
+    color: var(--gold);
+    letter-spacing: 2px;
+    margin: 18px 0 10px;
+    border-bottom: 1px solid var(--border);
+    padding-bottom: 6px;
+  }
+  .scheme-grid {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 16px;
+  }
+  .scheme-item {
+    width: 104px;
+    cursor: pointer;
+    text-align: center;
+  }
+  .scheme-thumb {
+    width: 100px;
+    height: 140px;
+    position: relative;
+    overflow: hidden;
+    border-radius: 8px;
+    background: #0c0f16;
+    border: 1px solid var(--border);
+    transition: transform 0.12s ease, border-color 0.12s ease;
+  }
+  .scheme-item:hover .scheme-thumb { transform: translateY(-4px); border-color: var(--silver); }
+  .scheme-item.active .scheme-thumb {
+    outline: 2px solid var(--gold-bright);
+    outline-offset: 3px;
+  }
+  .scheme-thumb .card {
+    position: absolute;
+    top: 0; left: 0;
+    transform: scale(0.4);
+    transform-origin: 0 0;
+  }
+  .scheme-item .sname {
+    display: block;
+    font-size: 11px;
+    color: var(--text-dim);
+    margin-top: 6px;
+  }
+  .scheme-item.active .sname { color: var(--gold); font-weight: bold; }
+  .scheme-item .sdesc {
+    display: block;
+    font-size: 10px;
+    color: var(--text-faint);
+    margin-top: 2px;
+    line-height: 1.4;
+  }
+
+  /* ---------- 底部说明 ---------- */
+  .notes-bottom {
+    margin-top: 44px;
+    max-width: 1400px;
+  }
+  .notes-bottom ul {
+    list-style: none;
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+    gap: 6px;
+    align-items: start;
+  }
+  .notes-bottom li {
+    font-size: 12px; color: var(--text-dim); line-height: 1.55;
+    padding: 7px 10px; margin-bottom: 6px;
+    background: var(--panel-2); border: 1px solid var(--border); border-radius: 8px;
+  }
+  .notes-bottom li b { color: var(--text); }
+
+  footer { margin-top: 44px; font-size: 12px; color: var(--text-faint); line-height: 1.8; }
+  footer a { color: var(--gold); text-decoration: none; }
+
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { animation: none !important; transition: none !important; }
+  }
+  /* 渐变边框层（金/银/合金/箔面共用） */
+  .mat-frame {
+    position: absolute;
+    inset: -4px;
+    border-radius: 19px;
+    background: var(--frame-bg);
+    overflow: hidden;
+    z-index: -1;
+  }
+
+  /* 外发光 */
+  .glow {
+    position: absolute;
+    inset: -8px;
+    border-radius: 22px;
+    background: var(--glow-bg);
+    opacity: var(--glow);
+    filter: blur(9px);
+    z-index: -2;
+    pointer-events: none;
+  }
+
+  /* 动态镜面高光：中心点由 JS 写 CSS 变量，跟随鼠标 */
+  .gloss {
+    position: absolute;
+    inset: 0;
+    border-radius: 13px;
+    background: radial-gradient(ellipse 95% 72% at var(--lx, 30%) var(--ly, 8%),
+      rgba(255,255,255,var(--mat-gloss)) 0%, rgba(255,255,255,0) 55%);
+    pointer-events: none;
+  }
+
+  /* 扫光带（闪卡专用） */
+  .sheen-band {
+    position: absolute;
+    inset: 0;
+    border-radius: 13px;
+    overflow: hidden;
+    pointer-events: none;
+    opacity: 0;
+  }
+  .mat-foil .sheen-band { opacity: 1; }
+  .strip {
+    position: absolute;
+    top: -18%; bottom: -18%;
+    left: 0;
+    width: 36%;
+    transform: translateX(var(--sweep-x, -300px));
+  }
+  .strip-in {
+    width: 100%; height: 100%;
+    background: linear-gradient(115deg, transparent 0%, rgba(255,255,255,0.55) 50%, transparent 100%);
+    transform: skewX(var(--sheen-angle));
+    filter: blur(4px);
+  }
+  @keyframes sweep {
+    0%, 55% { transform: translateX(-190%); }
+    100% { transform: translateX(540%); }
+  }
+
+  /* ---------- 六种材质 ---------- */
+  .mat-cloth {
+    --frame-bg: linear-gradient(180deg, #3a4254, #262c3a);
+    --body-bg:
+      repeating-linear-gradient(0deg, rgba(255,255,255,0.014) 0 1px, transparent 1px 3px),
+      linear-gradient(160deg, #2b3140 0%, #1d2330 62%, #161a24 100%);
+    --mat-gloss: 0.12;
+    --glow-bg: radial-gradient(ellipse, rgba(43,50,69,0.8), transparent 70%);
+  }
+  .mat-silver {
+    --frame-bg: linear-gradient(160deg, #e2e8f2 0%, #9aa3b5 40%, #46536f 95%);
+    --body-bg: linear-gradient(160deg, #39414f 0%, #222838 62%, #171b25 100%);
+    --mat-gloss: 0.35;
+    --glow-bg: radial-gradient(ellipse, rgba(154,163,181,0.55), transparent 70%);
+  }
+  .mat-alloy {
+    --frame-bg: linear-gradient(160deg, #c3baf5 0%, #7b6fd0 45%, #3a3165 100%);
+    --body-bg: linear-gradient(160deg, #37314a 0%, #242034 62%, #17131f 100%);
+    --mat-gloss: 0.30;
+    --glow-bg: radial-gradient(ellipse, rgba(122,111,208,0.55), transparent 70%);
+  }
+  .mat-gold {
+    --frame-bg: linear-gradient(150deg, #ffe9b0 0%, #f0d98a 28%, #b8953a 60%, #6e561d 100%);
+    --body-bg: linear-gradient(160deg, #4a3d1e 0%, #2d2413 55%, #1d180d 100%);
+    --mat-gloss: 0.45;
+    --glow-bg: radial-gradient(ellipse, rgba(240,217,138,0.5), transparent 70%);
+  }
+  .mat-gold .name {
+    background: linear-gradient(180deg, var(--gold-bright), var(--gold));
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+    text-shadow: 0 1px 0 rgba(0,0,0,0.65), 0 0 12px rgba(240,217,138,0.5);
+  }
+  .mat-foil {
+    --frame-bg: conic-gradient(from 0deg, #f0d98a, #e06a5a, #8a5fc0, #4f7fc4, #8fe0a8, #f0d98a);
+    --body-bg: linear-gradient(160deg, #33303e 0%, #232030 62%, #16141c 100%);
+    --mat-gloss: 0.32;
+    --glow-bg: radial-gradient(ellipse, rgba(214,170,220,0.45), transparent 70%);
+  }
+  .mat-foil .mat-frame {
+    background: transparent;
+  }
+  /* 旋转放在裁剪容器内：渐变绕卡面中心转，角部不会甩出卡面 */
+  .mat-foil .mat-frame::before {
+    content: "";
+    position: absolute;
+    inset: -100%;
+    background: conic-gradient(from 0deg, #f0d98a, #e06a5a, #8a5fc0, #4f7fc4, #8fe0a8, #f0d98a);
+    animation: foil-rotate var(--foil-dur) linear infinite;
+  }
+  .mat-glass {
+    --frame-bg: linear-gradient(160deg, rgba(255,255,255,0.55), rgba(255,255,255,0.10));
+    --body-bg: linear-gradient(160deg, rgba(255,255,255,0.13), rgba(255,255,255,0.04));
+    --mat-gloss: 0.55;
+    --glow-bg: radial-gradient(ellipse, rgba(160,190,255,0.25), transparent 70%);
+    backdrop-filter: blur(7px);
+    -webkit-backdrop-filter: blur(7px);
+  }
+
+  /* 材质特效层：按材质切换动画/混合模式（默认不可见，只对需要的材质启用） */
+  .mat-fx {
+    position: absolute;
+    inset: 0;
+    border-radius: 13px;
+    overflow: hidden;
+    pointer-events: none;
+    z-index: 1;
+    opacity: 0;
+  }
+  .mat-fx::before {
+    content: "";
+    position: absolute;
+    inset: -50%;
+    opacity: 0;
+  }
+
+  /* ---------- 扩展材质库（参考） ---------- */
+
+  /* 拉丝金属：重复线性渐变细纹 */
+  .mat-brushed {
+    --frame-bg: linear-gradient(160deg, #d7dde8 0%, #8b95a8 45%, #525b6d 100%);
+    --body-bg:
+      repeating-linear-gradient(78deg, rgba(255,255,255,0.05) 0 1px, rgba(0,0,0,0.05) 1px 2px, transparent 2px 4px),
+      linear-gradient(160deg, #59606f 0%, #3a4150 50%, #262c38 100%);
+    --mat-gloss: 0.30;
+    --glow-bg: radial-gradient(ellipse, rgba(150,160,180,0.35), transparent 70%);
+  }
+
+  /* 液态铬：高对比多段渐变 + 扫光 */
+  .mat-chrome {
+    --frame-bg: linear-gradient(160deg, #f4f7fb 0%, #9aa7bd 25%, #4a5568 50%, #c6d0e0 72%, #39424f 100%);
+    --body-bg: linear-gradient(160deg, #c9d2e0 0%, #6b7689 28%, #2c3340 52%, #98a4b8 76%, #1d232d 100%);
+    --mat-gloss: 0.50;
+    --glow-bg: radial-gradient(ellipse, rgba(190,205,225,0.4), transparent 70%);
+  }
+  .mat-chrome .gloss { mix-blend-mode: screen; }
+  .mat-chrome .mat-fx { opacity: 1; }
+  .mat-chrome .mat-fx::before {
+    opacity: 1;
+    background: linear-gradient(115deg, transparent 30%, rgba(255,255,255,0.45) 50%, transparent 70%);
+    background-size: 220% 100%;
+    animation: chrome-sweep 4.2s ease-in-out infinite;
+  }
+
+  /* 黄铜：暖金属 + 微光 */
+  .mat-brass {
+    --frame-bg: linear-gradient(150deg, #f2d9a0 0%, #c89a4e 35%, #8a6428 70%, #5d4418 100%);
+    --body-bg: linear-gradient(160deg, #5a4422 0%, #3d2f17 55%, #241b0d 100%);
+    --mat-gloss: 0.38;
+    --glow-bg: radial-gradient(ellipse, rgba(200,154,78,0.4), transparent 70%);
+  }
+  .mat-brass .name { color: #f2d9a0; text-shadow: 0 1px 0 rgba(0,0,0,0.6), 0 0 8px rgba(242,217,160,0.35); }
+
+  /* 碳纤维：双向重复渐变编织纹 */
+  .mat-carbon {
+    --frame-bg: linear-gradient(160deg, #8f97a8 0%, #565e6e 50%, #333a47 100%);
+    --body-bg:
+      repeating-linear-gradient(45deg, rgba(255,255,255,0.025) 0 2px, transparent 2px 5px),
+      repeating-linear-gradient(-45deg, rgba(255,255,255,0.025) 0 2px, transparent 2px 5px),
+      linear-gradient(160deg, #232833 0%, #171b23 70%, #10131a 100%);
+    --mat-gloss: 0.22;
+    --glow-bg: radial-gradient(ellipse, rgba(90,100,120,0.4), transparent 70%);
+  }
+
+  /* 珠光：柔和 conic 虹彩（浅色系） */
+  .mat-pearl {
+    --frame-bg: linear-gradient(150deg, #fff6e8 0%, #e8c8c0 35%, #c0b8d8 70%, #a8c0d8 100%);
+    --body-bg:
+      conic-gradient(from 210deg at 55% 35%, #f3e6d6, #dcc0cc, #bcc8e0, #e2ccb4, #f3e6d6),
+      linear-gradient(160deg, #ddd0c4 0%, #c8b8b8 60%, #b0a8c0 100%);
+    --mat-gloss: 0.50;
+    --glow-bg: radial-gradient(ellipse, rgba(240,220,200,0.45), transparent 70%);
+  }
+
+  /* 油膜全息：深底 + 旋转虹彩混合层（screen 混合模式） */
+  .mat-oil {
+    --frame-bg: conic-gradient(from 90deg, #d8b0f0, #6aa0e8, #6ad8a8, #f0d86a, #f090a0, #d8b0f0);
+    --body-bg: linear-gradient(160deg, #181a22 0%, #12141a 70%, #0d0f14 100%);
+    --mat-gloss: 0.25;
+    --glow-bg: radial-gradient(ellipse, rgba(140,150,220,0.4), transparent 70%);
+  }
+  .mat-oil .mat-fx { opacity: 1; }
+  .mat-oil .mat-fx::before {
+    opacity: 1;
+    background: conic-gradient(from 0deg,
+      transparent 0 40deg, rgba(216,176,240,0.18) 70deg, rgba(106,160,232,0.18) 100deg,
+      rgba(106,216,168,0.16) 130deg, transparent 170deg 220deg, rgba(240,216,106,0.16) 260deg,
+      rgba(240,144,160,0.17) 300deg, transparent 340deg);
+    mix-blend-mode: screen;
+    animation: foil-rotate 9s linear infinite;
+  }
+
+  /* 大理石：多层径向斑纹叠加 */
+  .mat-marble {
+    --frame-bg: linear-gradient(150deg, #e8e4da 0%, #b8b0a0 50%, #7d7668 100%);
+    --body-bg:
+      radial-gradient(ellipse 60% 40% at 25% 30%, rgba(255,255,255,0.35), transparent 60%),
+      radial-gradient(ellipse 50% 60% at 75% 65%, rgba(90,85,75,0.25), transparent 65%),
+      radial-gradient(ellipse 70% 50% at 45% 80%, rgba(180,170,150,0.5), transparent 70%),
+      linear-gradient(160deg, #cfc7b8 0%, #a89f8e 70%, #8a8172 100%);
+    --mat-gloss: 0.18;
+    --glow-bg: radial-gradient(ellipse, rgba(200,192,175,0.35), transparent 70%);
+  }
+
+  /* 木纹：重复竖纹 + 暖棕渐变 */
+  .mat-wood {
+    --frame-bg: linear-gradient(150deg, #c9a06a 0%, #8a6238 55%, #5d3f22 100%);
+    --body-bg:
+      repeating-linear-gradient(90deg, rgba(0,0,0,0.06) 0 2px, transparent 2px 6px, rgba(255,255,255,0.03) 6px 8px, transparent 8px 12px),
+      linear-gradient(160deg, #7d5430 0%, #5d3b20 60%, #422a16 100%);
+    --mat-gloss: 0.22;
+    --glow-bg: radial-gradient(ellipse, rgba(201,160,106,0.35), transparent 70%);
+  }
+
+  /* 石板：噪点斑 + 冷灰渐变 */
+  .mat-stone {
+    --frame-bg: linear-gradient(160deg, #9aa0a8 0%, #5f656d 55%, #383d44 100%);
+    --body-bg:
+      radial-gradient(circle 2px at 20% 25%, rgba(255,255,255,0.12), transparent 2.5px),
+      radial-gradient(circle 3px at 70% 60%, rgba(0,0,0,0.18), transparent 3.5px),
+      radial-gradient(circle 2px at 45% 80%, rgba(255,255,255,0.08), transparent 2.5px),
+      linear-gradient(160deg, #6a7078 0%, #4a4f57 65%, #33373d 100%);
+    --mat-gloss: 0.15;
+    --glow-bg: radial-gradient(ellipse, rgba(130,138,150,0.35), transparent 70%);
+  }
+
+  /* 岩浆：暗岩底 + 熔光裂缝（动画脉动） */
+  .mat-lava {
+    --frame-bg: linear-gradient(150deg, #ff9a3c 0%, #d14a1f 40%, #7a1c0d 100%);
+    --body-bg: linear-gradient(160deg, #3a1710 0%, #24100b 70%, #160a08 100%);
+    --mat-gloss: 0.28;
+    --glow-bg: radial-gradient(ellipse, rgba(255,120,60,0.5), transparent 70%);
+  }
+  .mat-lava .mat-fx { opacity: 1; }
+  .mat-lava .mat-fx::before {
+    opacity: 0.85;
+    background:
+      radial-gradient(ellipse 40% 18% at 30% 45%, rgba(255,140,60,0.5), transparent 60%),
+      radial-gradient(ellipse 35% 12% at 68% 30%, rgba(255,90,40,0.5), transparent 60%),
+      radial-gradient(ellipse 30% 10% at 55% 70%, rgba(255,170,80,0.4), transparent 60%);
+    animation: lava-pulse 2.4s ease-in-out infinite alternate;
+  }
+
+  /* 星云：多层云团 + 星点（慢漂移） */
+  .mat-nebula {
+    --frame-bg: linear-gradient(150deg, #9a7fd0 0%, #4f3f8a 50%, #241c4a 100%);
+    --body-bg:
+      radial-gradient(ellipse 70% 45% at 30% 35%, rgba(120,90,200,0.4), transparent 65%),
+      radial-gradient(ellipse 60% 40% at 72% 60%, rgba(60,140,190,0.35), transparent 65%),
+      radial-gradient(ellipse 50% 35% at 50% 85%, rgba(200,120,180,0.25), transparent 65%),
+      linear-gradient(160deg, #1c1a30 0%, #12101f 70%, #0b0a14 100%);
+    --mat-gloss: 0.20;
+    --glow-bg: radial-gradient(ellipse, rgba(120,100,220,0.45), transparent 70%);
+  }
+  .mat-nebula .mat-fx { opacity: 1; }
+  .mat-nebula .mat-fx::before {
+    opacity: 0.8;
+    background:
+      radial-gradient(circle 1.5px at 20% 30%, rgba(255,255,255,0.9), transparent 2px),
+      radial-gradient(circle 1px at 45% 55%, rgba(255,255,255,0.8), transparent 1.5px),
+      radial-gradient(circle 1.5px at 70% 25%, rgba(255,255,255,0.7), transparent 2px),
+      radial-gradient(circle 1px at 85% 70%, rgba(255,255,255,0.8), transparent 1.5px),
+      radial-gradient(circle 1px at 60% 85%, rgba(255,255,255,0.7), transparent 1.5px);
+    animation: nebula-drift 14s ease-in-out infinite alternate;
+  }
+
+  /* 霓虹：暗底 + 彩色描边 + 扫光 */
+  .mat-neon {
+    --frame-bg: linear-gradient(150deg, #59f0ff 0%, #7a5cff 60%, #ff4fd8 100%);
+    --body-bg: linear-gradient(160deg, #160f26 0%, #0e0a18 70%, #08050d 100%);
+    --mat-gloss: 0.20;
+    --glow-bg: radial-gradient(ellipse, rgba(122,92,255,0.55), transparent 70%);
+  }
+  .mat-neon .name {
+    color: #8ff7ff;
+    text-shadow: 0 0 8px rgba(89,240,255,0.9), 0 0 18px rgba(122,92,255,0.8);
+  }
+  .mat-neon .mat-fx { opacity: 1; }
+  .mat-neon .mat-fx::before {
+    opacity: 0.5;
+    background: linear-gradient(115deg, transparent 35%, rgba(255,120,255,0.25) 50%, transparent 65%);
+    background-size: 220% 100%;
+    animation: neon-sweep 3.2s ease-in-out infinite;
+  }
+
+  /* 宝可梦全息（参考 simeydotme/pokemon-cards-css）：sparkles 星星层 + color-dodge + 动态高光 */
+  .mat-holo {
+    --frame-bg: conic-gradient(from 0deg, #ffd166, #ff6b6b, #c56cf0, #3ae374, #18dcff, #ffd166);
+    --body-bg: linear-gradient(160deg, #20242e 0%, #171b24 70%, #101319 100%);
+    --mat-gloss: 0.35;
+    --glow-bg: radial-gradient(ellipse, rgba(255,209,102,0.4), transparent 70%);
+  }
+  .mat-holo .mat-fx { opacity: 1; }
+  .mat-holo .mat-fx::before {
+    opacity: 0.85;
+    background: url("../assets/ui/sparkles.gif") center / cover no-repeat;
+    mix-blend-mode: color-dodge;
+    animation: holo-flicker 3s ease-in-out infinite alternate;
+  }
+
+  /* 浅色材质上的文字改为深色，保证可读 */
+  .mat-pearl .name, .mat-pearl .type, .mat-pearl .desc,
+  .mat-marble .name, .mat-marble .type, .mat-marble .desc {
+    color: #3d362d;
+  }
+
+  @keyframes foil-rotate { to { transform: rotate(360deg); } }
+  @keyframes chrome-sweep {
+    0%, 60% { background-position: 130% 0; }
+    100% { background-position: -130% 0; }
+  }
+  @keyframes lava-pulse {
+    from { opacity: 0.55; transform: scale(0.98); }
+    to { opacity: 1; transform: scale(1.03); }
+  }
+  @keyframes nebula-drift {
+    from { transform: translate(-3%, -2%) scale(1); }
+    to { transform: translate(3%, 2%) scale(1.06); }
+  }
+  @keyframes neon-sweep {
+    0% { background-position: 130% 0; }
+    100% { background-position: -130% 0; }
+  }
+  @keyframes holo-flicker {
+    from { opacity: 0.65; }
+    to { opacity: 1; }
+  }
+
+  /* ---------- 工作台：材质参考墙 ---------- */
+  .ref-wall { margin-top: 30px; }
+  .mat-ref {
+    width: 108px; height: 150px;
+    position: relative;
+    border-radius: 10px;
+    cursor: pointer;
+    border: 1px solid var(--border);
+    overflow: hidden;
+    background: #0c0f16;
+    transition: transform 0.12s ease, border-color 0.12s ease;
+  }
+  .mat-ref:hover { transform: translateY(-4px); border-color: var(--silver); }
+  .mat-ref .mat-frame { border-radius: 13px; inset: -3px; }
+  .mat-ref .glow { border-radius: 15px; inset: -5px; filter: blur(6px); }
+  .mat-ref .gloss, .mat-ref .mat-fx, .mat-ref .sheen-band { border-radius: 8px; }
+  .ref-label {
+    position: absolute;
+    bottom: 4px; left: 6px;
+    font-size: 10px;
+    color: #e8e6e3;
+    background: rgba(0,0,0,0.6);
+    padding: 2px 7px;
+    border-radius: 5px;
+    z-index: 4;
+    pointer-events: none;
+    white-space: nowrap;
+  }
+  /* 材质与卡面底版整合：选了材质时，face 使用材质的底版渐变 */
+  .card:not(.mat-none) .face { background: transparent; }
+  .card:not(.mat-none) .face::before { background: var(--body-bg); }
+
+  /* 高性能模式：箔面不旋转，用静态彩虹边框 + 扫光，减少重绘 */
+  .perf-mode .mat-foil .mat-frame::before {
+    animation: none;
+    background: linear-gradient(150deg, #f0d98a, #e06a5a, #8a5fc0, #4f7fc4, #f0d98a);
+  }
+</style>
+</head>
+<body>
+
+  <h1>卡牌美术工作台<small>材质 · 动画 · 布局 一体设计（v4 卡面 + 19 种材质 + 全息参数工作台/浮雕）</small></h1>
+  <p class="sub">
+    统一设计入口：<b>材质</b>（19 种 + 参考墙）· <b>动画</b>（全息膜 / 扫光 / 星星 / 3D 倾斜）·
+    <b>布局</b>（7 套方案 / 类型形状 / 稀有度 / 内容编辑）。全息内置
+    <b>12 套风格预设</b>（宝可梦实卡 7 套：稀有 Rare / 宇宙 Cosmos / 反向 Reverse /
+    光辉 Radiant / 奇观 Amazing / 金色 Secret / 闪光 Shiny；自定 5 套：
+    落日 / 极光 / 霓虹 / 油膜 / 银河，对应未来 CardData.foil 字段），
+    每套可继续微调膜 / 光斑 / 扫光 / 星星 / 光泽 / 3D。
+    右侧画廊切方案，底部参考墙切材质，两者与全息、浮雕可自由叠加；
+    支持本地卡图 + 拖拽 / 缩放。
+  </p>
+
+  <div class="hero-row">
+    <div>
+      <div class="stage" id="stage">
+        <div class="card-shadow" id="cardShadow"></div>
+        <div class="card3d" id="card3d">
+          <div class="card scheme-a" id="heroCard">
+            <div class="face"></div>
+            <div class="mat-frame"></div>
+            <div class="glow"></div>
+            <div class="gloss"></div>
+            <div class="mat-fx"></div>
+            <div class="sheen-band"><div class="strip"><div class="strip-in"></div></div></div>
+            <div class="holo holo-film"></div>
+            <div class="holo holo-shine"></div>
+            <div class="holo holo-sparkles"></div>
+            <div class="holo holo-gloss"></div>
+            <div class="cost" id="heroCost">2</div>
+            <div class="type-gem"><span class="type-icon" id="heroTypeIcon">⚔</span></div>
+            <div class="name" id="heroName">虹光飞刃</div>
+            <div class="art-frame" id="heroArtFrame">
+              <div class="art-window" id="heroArtWin"></div>
+            </div>
+            <div class="rarity-gem" id="heroRarityGem"></div>
+            <div class="desc" id="heroDesc">造成 10 点伤害。</div>
+            <div class="info-strip" id="heroInfo">
+              <span class="info-id" id="heroInfoId">NO.102</span>
+              <span class="info-type" id="heroInfoType"><span class="type-name">攻击</span></span>
+            </div>
+            <div class="up-badge" id="heroUp">+</div>
+          </div>
+        </div>
+      </div>
+      <p class="hint" id="heroMeta" style="text-align:center; margin-top:10px;">普通卡 · 方案A 经典大画窗</p>
+    </div>
+
+    <div class="controls">
+      <h2>0 · 卡面材质（19 种 + 默认）</h2>
+      <div class="btn-row" id="matBtns">
+        <button class="btn active" data-mat="none">默认</button>
+        <button class="btn" data-mat="cloth">粗布</button>
+        <button class="btn" data-mat="silver">银灰</button>
+        <button class="btn" data-mat="alloy">合金</button>
+        <button class="btn" data-mat="gold">金箔</button>
+        <button class="btn" data-mat="foil">闪卡</button>
+        <button class="btn" data-mat="glass">玻璃</button>
+        <button class="btn" data-mat="brushed">拉丝</button>
+        <button class="btn" data-mat="chrome">液态铬</button>
+        <button class="btn" data-mat="brass">黄铜</button>
+        <button class="btn" data-mat="carbon">碳纤</button>
+        <button class="btn" data-mat="pearl">珠光</button>
+        <button class="btn" data-mat="oil">油膜</button>
+        <button class="btn" data-mat="marble">大理石</button>
+        <button class="btn" data-mat="wood">木纹</button>
+        <button class="btn" data-mat="stone">石板</button>
+        <button class="btn" data-mat="lava">岩浆</button>
+        <button class="btn" data-mat="nebula">星云</button>
+        <button class="btn" data-mat="neon">霓虹</button>
+        <button class="btn" data-mat="holo">宝可梦全息</button>
+      </div>
+      <p class="hint" id="matStatus">当前材质：默认（类型色底版）</p>
+
+      <h2>1 · 卡面内容（实时生效）</h2>
+      <label>卡名 <input type="text" id="nameInput" value="虹光飞刃"></label>
+      <label>编号 <input type="text" id="infoIdInput" value="NO.102"></label>
+      <label>费用 <span class="btn-row" id="costBtns">
+        <button class="btn" data-cost="0">0</button>
+        <button class="btn" data-cost="1">1</button>
+        <button class="btn active" data-cost="2">2</button>
+        <button class="btn" data-cost="3">3</button>
+      </span></label>
+      <label>类型 <span class="btn-row" id="typeBtns">
+        <button class="btn active" data-type="attack">攻击</button>
+        <button class="btn" data-type="skill">技能</button>
+        <button class="btn" data-type="power">能力</button>
+      </span></label>
+      <label>画窗形状 <span class="btn-row" id="shapeBtns">
+        <button class="btn active" data-shape="auto">随类型</button>
+        <button class="btn" data-shape="rect">圆角矩形</button>
+        <button class="btn" data-shape="pentagon">五边形</button>
+        <button class="btn" data-shape="ellipse">椭圆</button>
+      </span></label>
+      <p class="hint">攻击=圆角矩形，技能=下方尖角的五边形，能力=椭圆；异画卡保持满版矩形。</p>
+      <label>稀有度 <span class="btn-row" id="rarityBtns">
+        <button class="btn" data-rarity="starter">初始</button>
+        <button class="btn active" data-rarity="common">普通</button>
+        <button class="btn" data-rarity="uncommon">罕见</button>
+        <button class="btn" data-rarity="rare">稀有</button>
+      </span></label>
+      <label>描述 <span class="btn-row" id="descBtns">
+        <button class="btn active" data-desc="short">短描述</button>
+        <button class="btn" data-desc="long">长描述</button>
+      </span></label>
+      <label class="check"><input type="checkbox" id="upBadge"> 显示强化标记 +</label>
+
+      <h2>2 · 卡面素材</h2>
+      <div class="btn-row">
+        <button class="btn" id="pixelArtBtn">像素占位</button>
+        <button class="btn" id="sceneArtBtn">场景占位（异画）</button>
+        <button class="btn" id="pickImageBtn">本地图片</button>
+      </div>
+      <label>缩放 <input type="range" id="artScale" min="0.25" max="4" step="0.05" value="1"><span class="val" id="artScaleVal">100%</span></label>
+      <label>X 轴 <input type="range" id="artX" min="-120" max="120" step="1" value="0"><span class="val" id="artXVal">0px</span></label>
+      <label>Y 轴 <input type="range" id="artY" min="-120" max="120" step="1" value="0"><span class="val" id="artYVal">0px</span></label>
+      <button class="btn" id="resetArtPosBtn">重置位置 / 缩放</button>
+      <p class="hint" id="artStatus">当前素材：像素占位</p>
+      <p class="hint">也可以直接在画框内拖拽图片，滚轮缩放。</p>
+      <input type="file" id="imageInput" accept="image/*" hidden />
+
+      <h2>3 · 效果预览（全息参数工作台）</h2>
+      <details open class="ctrl-grp">
+        <summary>总开关</summary>
+        <div class="grp">
+          <label class="check"><input type="checkbox" id="foilToggle"> 预览全息膜 / 扫光 / 星星</label>
+          <label class="check"><input type="checkbox" id="tiltToggle" checked> 卡牌跟随鼠标倾斜</label>
+          <label class="check"><input type="checkbox" id="autoRotate" checked> 鼠标离开后自动旋转</label>
+          <button class="btn" id="resetHoloBtn">↺ 重置全息参数</button>
+        </div>
+      </details>
+      <details open class="ctrl-grp">
+        <summary>全息风格预设</summary>
+        <div class="grp">
+          <p class="preset-group-label">宝可梦实卡风格</p>
+          <div class="btn-row" id="holoPresetPokemon"></div>
+          <p class="preset-group-label">自定风格</p>
+          <div class="btn-row" id="holoPresetCustom"></div>
+          <p class="hint" id="holoPresetHint"></p>
+        </div>
+      </details>
+      <details class="ctrl-grp">
+        <summary>全息膜（彩虹镀膜）</summary>
+        <div class="grp">
+          <label>厚度（整卡） <input type="range" id="holoOpacity" min="0" max="1" step="0.05" value="0.72"><span class="val" id="holoOpacityVal"></span></label>
+          <label>条纹角度 <input type="range" id="holoAngle" min="0" max="180" step="1" value="82"><span class="val" id="holoAngleVal"></span></label>
+          <label>彩虹周期（越大越平滑） <input type="range" id="holoPeriod" min="1" max="8" step="0.5" value="4"><span class="val" id="holoPeriodVal"></span></label>
+          <label>膜视差（跟随鼠标） <input type="range" id="holoParallax" min="0" max="5" step="0.1" value="2.6"><span class="val" id="holoParallaxVal"></span></label>
+          <label>饱和度 <input type="range" id="holoSat" min="0.2" max="2" step="0.05" value="1.15"><span class="val" id="holoSatVal"></span></label>
+          <label>亮度 <input type="range" id="holoBright" min="0.2" max="2" step="0.05" value="1.05"><span class="val" id="holoBrightVal"></span></label>
+          <label>对比度 <input type="range" id="holoContrast" min="0.5" max="3" step="0.05" value="1.75"><span class="val" id="holoContrastVal"></span></label>
+          <label>膜模糊 <input type="range" id="holoBlur" min="0" max="12" step="0.5" value="0"><span class="val" id="holoBlurVal"></span></label>
+          <label>混合模式 <select id="holoMix">
+            <option value="auto" selected>自动（普通卡 color-dodge / 异画 overlay）</option>
+            <option value="color-dodge">color-dodge（强反光）</option>
+            <option value="overlay">overlay（保留底纹）</option>
+            <option value="screen">screen（柔和提亮）</option>
+            <option value="soft-light">soft-light（细腻光泽）</option>
+          </select></label>
+          <p class="hint">平滑彩虹箔纸 + 鼠标视差（pokemon-cards-css 技法）：颜色自然过渡无硬边，位置随鼠标滑动，模拟斜看箔纸的反光。</p>
+        </div>
+      </details>
+      <details class="ctrl-grp">
+        <summary>光斑 · 扫光</summary>
+        <div class="grp">
+          <label>光斑强度（跟随鼠标） <input type="range" id="spotA" min="0" max="1" step="0.05" value="0.5"><span class="val" id="spotAVal"></span></label>
+          <label>光斑大小 <input type="range" id="spotSize" min="0.4" max="1.8" step="0.05" value="1"><span class="val" id="spotSizeVal"></span></label>
+          <label>扫光强度 <input type="range" id="glossStrength" min="0" max="1" step="0.05" value="0.75"><span class="val" id="glossStrengthVal"></span></label>
+          <label>扫光角度 <input type="range" id="glossAngle" min="0" max="180" step="1" value="115"><span class="val" id="glossAngleVal"></span></label>
+          <label>扫光模糊 <input type="range" id="glossBlur" min="0" max="20" step="0.5" value="6"><span class="val" id="glossBlurVal"></span></label>
+          <label>扫光带宽 <input type="range" id="glossWidth" min="25" max="75" step="1" value="50"><span class="val" id="glossWidthVal"></span></label>
+          <label>扫光频率（间隔秒数） <input type="range" id="sweepFreq" min="0" max="8" step="0.5" value="3"><span class="val" id="sweepFreqVal">3s</span></label>
+          <label>扫光速度（单次秒数） <input type="range" id="sweepSpeed" min="0.5" max="4" step="0.1" value="1.8"><span class="val" id="sweepSpeedVal">1.8s</span></label>
+        </div>
+      </details>
+      <details class="ctrl-grp">
+        <summary>星星光点</summary>
+        <div class="grp">
+          <label>星星强度 <input type="range" id="sparkleStrength" min="0" max="1" step="0.05" value="0.75"><span class="val" id="sparkleStrengthVal"></span></label>
+          <label>星星大小 <input type="range" id="sparkleSize" min="0.5" max="2.5" step="0.05" value="1"><span class="val" id="sparkleSizeVal"></span></label>
+          <label>星星密度 <input type="range" id="sparkleDensity" min="0.3" max="2.5" step="0.05" value="1"><span class="val" id="sparkleDensityVal"></span></label>
+          <label>闪烁速度（秒/轮） <input type="range" id="sparkleSpeed" min="0.6" max="6" step="0.1" value="2.2"><span class="val" id="sparkleSpeedVal"></span></label>
+        </div>
+      </details>
+      <details class="ctrl-grp">
+        <summary>塑料光泽 · 3D</summary>
+        <div class="grp">
+          <label>塑料光泽强度 <input type="range" id="shineA" min="0" max="1" step="0.05" value="0.8"><span class="val" id="shineAVal"></span></label>
+          <label>3D 倾斜幅度 <input type="range" id="tiltAmt" min="4" max="30" step="1" value="14"><span class="val" id="tiltAmtVal"></span></label>
+          <label>自动旋转速度 <input type="range" id="autoRotSpeed" min="0.2" max="3" step="0.05" value="1"><span class="val" id="autoRotSpeedVal"></span></label>
+        </div>
+      </details>
+      <label id="artFilmRow">画面全息强度（普通卡） <input type="range" id="artFilm" min="0" max="1" step="0.01" value="1"><span class="val" id="artFilmVal"></span></label>
+      <label id="frameFilmRow">边框全息强度（普通卡） <input type="range" id="frameFilm" min="0" max="1" step="0.01" value="0.22"><span class="val" id="frameFilmVal"></span></label>
+      <p class="hint" id="holoHint">普通卡：全息主角是画面（默认满强度），边框只留轻镀膜反光；异画卡整卡铺满，混合模式自动从 color-dodge 切到 overlay，避免亮底发白。</p>
+      <p class="hint">先选风格预设，再微调膜 / 光斑 / 扫光 / 星星；建议先用默认素材判断版式，上传真实卡图后再定稿。</p>
+    </div>
+
+    <div class="side-col">
+      <h2>4 · 方案画廊（点缩略图选择）</h2>
+      <div class="scheme-group-label">普通卡方案</div>
+      <div class="scheme-grid" id="normalGrid"></div>
+      <div class="scheme-group-label">异画卡方案（图片铺满整卡）</div>
+      <div class="scheme-grid" id="altGrid"></div>
+    </div>
+  </div>
+
+  <section class="ref-wall">
+    <h2>5 · 材质参考墙（19 种，点卡片应用到主卡）</h2>
+    <p class="sub">材质与布局、全息、浮雕可叠加：先选材质，再切方案 / 调全息 / 换素材。</p>
+    <div class="scheme-grid" id="matWall"></div>
+  </section>
+
+  <section class="notes-bottom">
+    <h2>6 · 方案设计说明</h2>
+    <ul>
+      <li><b>A 经典大画窗</b>：标题留一条窄带，画窗从 y30 扩到 y200（约 57% 卡高），费用球和类型宝石压在画角上；描述区下移到画下，底部编号条独立</li>
+      <li><b>B 全宽无框画</b>：画作横向铺满、去掉画框，卡名直接浮在画上，最"现代集换式卡牌"的做法；描述与信息条保持同 A</li>
+      <li><b>C 纵向三段</b>：画 / 描述 / 信息条三段等距，描述区最高（82px+），适合未来文本变多的卡</li>
+      <li><b>D 极简留白</b>：画幅最大（约 78% 卡高），角标最小化，信息条最矮，适合以图为主的卡</li>
+      <li><b>E 满版异画 · 悬浮 UI</b>：整卡都是画，名称/费用/类型悬浮在画上，描述为底部半透明毛玻璃面板</li>
+      <li><b>F 满版异画 · 极简角标</b>：只有费用和类型角标 + 一个小描述片，画面最纯净，接近"异画稀有"的气质</li>
+      <li><b>G 满版异画 · 金框</b>：整卡绘画 + 鎏金内框，金字卡名，正式感最强，适合高级稀有度</li>
+      <li><b>通用改进</b>：描述区一律加高（min-height 64~82px）且锚定底部向上生长；底部编号/类型/稀有度信息条解放了卡面中部空间</li>
+    </ul>
+  </section>
+
+  <footer>
+    卡牌美术工作台（材质 / 动画 / 布局 一体）。表面工艺（浮雕 / 全息）见
+    <a href="./emboss.md">docs/emboss.md</a>，美术规范见 <a href="./art-style.md">docs/art-style.md</a>。
+  </footer>
+
+<script>
+  // ================= 占位素材 =================
+  const PAL = {
+    ".": null,
+    "b": "#5f8f6a", "d": "#3f5f4a", "l": "#87b78f",
+    "e": "#161a24", "h": "#ffe9b0",
+    "#": "#aebdd0", "+": "#f0d98a", "o": "#14171f",
+    "c": "#7fd4ff", "w": "#e8e6e3", "r": "#c0553f", "u": "#8a5fc0",
+  };
+  function drawPixelsScaled(canvas, rows, block) {
+    const ctx = canvas.getContext("2d");
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    for (let y = 0; y < rows.length; y++) {
+      for (let x = 0; x < rows[y].length; x++) {
+        const c = PAL[rows[y][x]];
+        if (c) { ctx.fillStyle = c; ctx.fillRect(x * block, y * block, block, block); }
+      }
+    }
+  }
+  const CRYSTAL = [
+    "................",
+    ".......bb.......",
+    "......bddb......",
+    ".....bddddb.....",
+    ".....bddddb.....",
+    "....bddddddb....",
+    "....bddddddb....",
+    "...bddddddddb...",
+    "...bddddddddb...",
+    "...bddddddddb...",
+    "....bddddddb....",
+    ".....bddddb.....",
+    "......bddb......",
+    ".......bb.......",
+    "................",
+    "................",
+  ];
+  function drawScene(canvas) {
+    const ctx = canvas.getContext("2d");
+    const W = canvas.width, H = canvas.height;
+    const sky = ctx.createLinearGradient(0, 0, 0, H);
+    sky.addColorStop(0, "#0b1530");
+    sky.addColorStop(0.45, "#2c3f72");
+    sky.addColorStop(0.72, "#8a5a76");
+    sky.addColorStop(1, "#c98a5a");
+    ctx.fillStyle = sky;
+    ctx.fillRect(0, 0, W, H);
+    ctx.fillStyle = "rgba(255,255,255,0.8)";
+    for (let i = 0; i < 46; i++) {
+      const x = (i * 97 + 31) % W;
+      const y = (i * 53 + 17) % Math.floor(H * 0.42);
+      ctx.globalAlpha = 0.25 + ((i * 7) % 5) * 0.13;
+      ctx.fillRect(x, y, 2, 2);
+    }
+    ctx.globalAlpha = 1;
+    const sx = W * 0.72, sy = H * 0.24, sr = 30;
+    const glow = ctx.createRadialGradient(sx, sy, 4, sx, sy, 95);
+    glow.addColorStop(0, "rgba(255,225,170,0.95)");
+    glow.addColorStop(0.35, "rgba(255,200,140,0.42)");
+    glow.addColorStop(1, "rgba(255,200,140,0)");
+    ctx.fillStyle = glow;
+    ctx.fillRect(sx - 95, sy - 95, 190, 190);
+    ctx.fillStyle = "#ffe9b0";
+    ctx.beginPath();
+    ctx.arc(sx, sy, sr, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = "#1d2440";
+    ctx.beginPath();
+    ctx.moveTo(0, H * 0.68);
+    ctx.lineTo(W * 0.2, H * 0.46);
+    ctx.lineTo(W * 0.38, H * 0.68);
+    ctx.lineTo(W * 0.55, H * 0.42);
+    ctx.lineTo(W * 0.72, H * 0.68);
+    ctx.lineTo(W * 0.88, H * 0.5);
+    ctx.lineTo(W, H * 0.68);
+    ctx.lineTo(W, H);
+    ctx.lineTo(0, H);
+    ctx.closePath();
+    ctx.fill();
+    ctx.fillStyle = "#12162a";
+    ctx.beginPath();
+    ctx.moveTo(0, H * 0.86);
+    ctx.lineTo(W * 0.28, H * 0.66);
+    ctx.lineTo(W * 0.5, H * 0.86);
+    ctx.lineTo(W * 0.72, H * 0.64);
+    ctx.lineTo(W, H * 0.86);
+    ctx.lineTo(W, H);
+    ctx.lineTo(0, H);
+    ctx.closePath();
+    ctx.fill();
+    ctx.fillStyle = "rgba(240,170,120,0.16)";
+    ctx.fillRect(0, H * 0.9, W, H * 0.1);
+    ctx.fillStyle = "rgba(255,235,220,0.32)";
+    for (let i = 0; i < 3; i++) {
+      const cx = (i * 320 + 60) % W;
+      const cy = H * (0.2 + i * 0.13);
+      ctx.beginPath();
+      ctx.ellipse(cx, cy, 46, 11, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.beginPath();
+      ctx.ellipse(cx + 24, cy - 8, 30, 9, 0, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }
+
+  // ================= 数据 =================
+  const TYPE_NAMES = { attack: "攻击", skill: "技能", power: "能力" };
+  const TYPE_ICONS = { attack: "⚔", skill: "🛡", power: "✦" };
+  const TYPE_COLORS = { attack: "#c0553f", skill: "#4f7fc4", power: "#8a5fc0" };
+  const RARITY_COLORS = { starter: "#9aa3b5", common: "#d8dde5", uncommon: "#6fc3f0", rare: "#f0c95a" };
+  const RARITY_GLOW = {
+    starter: "rgba(154,163,181,0.35)",
+    common: "rgba(216,221,229,0.45)",
+    uncommon: "rgba(111,195,240,0.55)",
+    rare: "rgba(240,201,90,0.7)",
+  };
+  const SHAPE_BY_TYPE = { attack: "rect", skill: "pentagon", power: "ellipse" };
+  const DESC_SAMPLES = {
+    short: "造成 10 点伤害。",
+    long: "造成 10 点伤害。若目标拥有易伤，则改为造成 14 点伤害，并施加 2 层虚弱。打出后抽 1 张牌。",
+  };
+  const SCHEMES = [
+    { id: "a", group: "normal", name: "经典大画窗", desc: "标题留白 + 画窗扩大，费用/宝石压画角" },
+    { id: "b", group: "normal", name: "全宽无框画", desc: "画作横向铺满无框，卡名浮在画上" },
+    { id: "c", group: "normal", name: "纵向三段", desc: "画 / 描述 / 信息条三段均衡" },
+    { id: "d", group: "normal", name: "极简留白", desc: "画幅最大（约 78%），信息最少化" },
+    { id: "e", group: "alt", name: "满版 · 悬浮 UI", desc: "整卡绘画，UI 悬浮其上" },
+    { id: "f", group: "alt", name: "满版 · 极简角标", desc: "仅费用与类型角标，画面纯净" },
+    { id: "g", group: "alt", name: "满版 · 金框", desc: "整卡绘画 + 鎏金内框" },
+  ];
+
+  // ================= DOM 引用 =================
+  const heroCard = document.getElementById("heroCard");
+  const heroArtWin = document.getElementById("heroArtWin");
+  const heroMeta = document.getElementById("heroMeta");
+  const heroCost = document.getElementById("heroCost");
+  const heroName = document.getElementById("heroName");
+  const heroTypeIcon = document.getElementById("heroTypeIcon");
+  const heroDesc = document.getElementById("heroDesc");
+  const heroInfoId = document.getElementById("heroInfoId");
+  const heroInfoType = document.getElementById("heroInfoType");
+  const heroUp = document.getElementById("heroUp");
+
+  let artMode = "pixel"; // pixel | scene | image
+  let lastObjectUrl = "";
+  let currentScheme = "a";
+  let currentType = "attack";
+  let currentRarity = "common";
+  let currentCost = 2;
+  let currentDesc = "short";
+  let shapeMode = "auto";
+
+  function buildArtNode(mode) {
+    if (mode === "image" && HERO_IMG_SRC) {
+      const img = document.createElement("img");
+      img.src = HERO_IMG_SRC;
+      img.alt = "卡图";
+      return img;
+    }
+    if (mode === "scene") {
+      const cv = document.createElement("canvas");
+      cv.width = 320;
+      cv.height = 448;
+      cv.className = "scene-art";
+      drawScene(cv);
+      return cv;
+    }
+    const cv = document.createElement("canvas");
+    cv.width = 128;
+    cv.height = 128;
+    cv.className = "pixel-art";
+    drawPixelsScaled(cv, CRYSTAL, 8);
+    return cv;
+  }
+  let HERO_IMG_SRC = "";
+
+  function applyArt() {
+    heroArtWin.innerHTML = "";
+    heroArtWin.appendChild(buildArtNode(artMode));
+    artStatus.textContent = artMode === "image"
+      ? "当前素材：本地图片"
+      : artMode === "scene"
+        ? "当前素材：场景占位（适合异画满版）"
+        : "当前素材：像素占位";
+  }
+
+  // ================= 方案切换 =================
+  function applyScheme(id) {
+    currentScheme = id;
+    heroCard.classList.remove("scheme-a", "scheme-b", "scheme-c", "scheme-d", "scheme-e", "scheme-f", "scheme-g");
+    heroCard.classList.add("scheme-" + id);
+    const s = SCHEMES.find((x) => x.id === id);
+    heroMeta.textContent = (s.group === "alt" ? "异画卡" : "普通卡") + " · 方案" + id.toUpperCase() + " " + s.name;
+    document.body.classList.toggle("alt-mode", s.group === "alt");
+    document.querySelectorAll(".scheme-item").forEach((el) =>
+      el.classList.toggle("active", el.dataset.scheme === id));
+    // 异画方案默认换成场景占位，避免像素画铺满整卡观感差
+    if (s.group === "alt" && artMode === "pixel") {
+      artMode = "scene";
+      applyArt();
+    }
+  }
+
+  // ================= 类型画窗形状 =================
+  function applyShape() {
+    const final = shapeMode === "auto" ? SHAPE_BY_TYPE[currentType] : shapeMode;
+    heroCard.classList.remove("shape-rect", "shape-pentagon", "shape-ellipse");
+    heroCard.classList.add("shape-" + final);
+    document.getElementById("shapeBtns").querySelectorAll(".btn").forEach((b) =>
+      b.classList.toggle("active", b.dataset.shape === shapeMode));
+  }
+  document.getElementById("shapeBtns").querySelectorAll(".btn").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      shapeMode = btn.dataset.shape;
+      applyShape();
+    });
+  });
+
+  // ================= 缩略图画廊 =================
+  function buildThumbCard(scheme) {
+    const c = document.createElement("div");
+    c.className = "card scheme-" + scheme.id;
+    c.style.setProperty("--type-color", TYPE_COLORS.attack);
+    c.style.setProperty("--rarity-color", RARITY_COLORS.common);
+    const face = document.createElement("div");
+    face.className = "face";
+    c.appendChild(face);
+    const frame = document.createElement("div");
+    frame.className = "art-frame";
+    const art = document.createElement("div");
+    art.className = "art-window";
+    frame.appendChild(art);
+    const cv = document.createElement("canvas");
+    cv.width = 320;
+    cv.height = 448;
+    cv.className = "scene-art";
+    drawScene(cv);
+    art.appendChild(cv);
+    const cost = document.createElement("div");
+    cost.className = "cost";
+    cost.textContent = "2";
+    const gem = document.createElement("div");
+    gem.className = "type-gem";
+    const icon = document.createElement("span");
+    icon.className = "type-icon";
+    icon.textContent = "⚔";
+    gem.appendChild(icon);
+    const name = document.createElement("div");
+    name.className = "name";
+    name.textContent = "示例卡";
+    const desc = document.createElement("div");
+    desc.className = "desc";
+    desc.textContent = DESC_SAMPLES.short;
+    const info = document.createElement("div");
+    info.className = "info-strip";
+    const idSpan = document.createElement("span");
+    idSpan.className = "info-id";
+    idSpan.textContent = "NO.102";
+    const typeSpan = document.createElement("span");
+    typeSpan.className = "info-type";
+    typeSpan.textContent = "攻击";
+    info.append(idSpan, typeSpan);
+    const rarityGem = document.createElement("div");
+    rarityGem.className = "rarity-gem";
+    c.append(face, frame, cost, gem, name, desc, rarityGem, info);
+    return c;
+  }
+
+  function buildGallery() {
+    const normalGrid = document.getElementById("normalGrid");
+    const altGrid = document.getElementById("altGrid");
+    SCHEMES.forEach((s) => {
+      const item = document.createElement("div");
+      item.className = "scheme-item" + (s.id === currentScheme ? " active" : "");
+      item.dataset.scheme = s.id;
+      const thumb = document.createElement("div");
+      thumb.className = "scheme-thumb";
+      thumb.appendChild(buildThumbCard(s));
+      const sname = document.createElement("span");
+      sname.className = "sname";
+      sname.textContent = "方案" + s.id.toUpperCase() + " " + s.name;
+      const sdesc = document.createElement("span");
+      sdesc.className = "sdesc";
+      sdesc.textContent = s.desc;
+      item.append(thumb, sname, sdesc);
+      item.addEventListener("click", () => applyScheme(s.id));
+      (s.group === "normal" ? normalGrid : altGrid).appendChild(item);
+    });
+  }
+
+  // ================= 内容控件 =================
+  const nameInput = document.getElementById("nameInput");
+  nameInput.addEventListener("input", () => { heroName.textContent = nameInput.value || "未命名"; });
+  const infoIdInput = document.getElementById("infoIdInput");
+  infoIdInput.addEventListener("input", () => { heroInfoId.textContent = infoIdInput.value || "—"; });
+  document.getElementById("costBtns").querySelectorAll(".btn").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      document.getElementById("costBtns").querySelectorAll(".btn").forEach((b) => b.classList.remove("active"));
+      btn.classList.add("active");
+      currentCost = parseInt(btn.dataset.cost, 10);
+      heroCost.textContent = currentCost;
+    });
+  });
+  document.getElementById("typeBtns").querySelectorAll(".btn").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      document.getElementById("typeBtns").querySelectorAll(".btn").forEach((b) => b.classList.remove("active"));
+      btn.classList.add("active");
+      currentType = btn.dataset.type;
+      heroCard.style.setProperty("--type-color", TYPE_COLORS[currentType]);
+      heroTypeIcon.textContent = TYPE_ICONS[currentType];
+      heroInfoType.childNodes[0].textContent = TYPE_NAMES[currentType];
+      applyShape();
+    });
+  });
+  document.getElementById("rarityBtns").querySelectorAll(".btn").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      document.getElementById("rarityBtns").querySelectorAll(".btn").forEach((b) => b.classList.remove("active"));
+      btn.classList.add("active");
+      currentRarity = btn.dataset.rarity;
+      heroCard.style.setProperty("--rarity-color", RARITY_COLORS[currentRarity]);
+      heroCard.style.setProperty("--rarity-glow", RARITY_GLOW[currentRarity]);
+    });
+  });
+  document.getElementById("descBtns").querySelectorAll(".btn").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      document.getElementById("descBtns").querySelectorAll(".btn").forEach((b) => b.classList.remove("active"));
+      btn.classList.add("active");
+      currentDesc = btn.dataset.desc;
+      heroDesc.textContent = DESC_SAMPLES[currentDesc];
+    });
+  });
+  document.getElementById("upBadge").addEventListener("change", (e) =>
+    heroUp.classList.toggle("show", e.target.checked));
+
+  // ================= 素材控件 =================
+  const artStatus = document.getElementById("artStatus");
+  document.getElementById("pixelArtBtn").addEventListener("click", () => {
+    artMode = "pixel";
+    HERO_IMG_SRC = "";
+    resetArtTransform();
+    applyArt();
+  });
+  document.getElementById("sceneArtBtn").addEventListener("click", () => {
+    artMode = "scene";
+    HERO_IMG_SRC = "";
+    resetArtTransform();
+    applyArt();
+  });
+  document.getElementById("pickImageBtn").addEventListener("click", () => imageInput.click());
+  const imageInput = document.getElementById("imageInput");
+  imageInput.addEventListener("change", () => {
+    const file = imageInput.files && imageInput.files[0];
+    if (!file) return;
+    if (lastObjectUrl) URL.revokeObjectURL(lastObjectUrl);
+    lastObjectUrl = URL.createObjectURL(file);
+    HERO_IMG_SRC = lastObjectUrl;
+    artMode = "image";
+    resetArtTransform();
+    applyArt();
+  });
+
+  // ================= 卡图拖拽 / 缩放 =================
+  const artScale = document.getElementById("artScale");
+  const artX = document.getElementById("artX");
+  const artY = document.getElementById("artY");
+  const artScaleVal = document.getElementById("artScaleVal");
+  const artXVal = document.getElementById("artXVal");
+  const artYVal = document.getElementById("artYVal");
+  function setArtTransform() {
+    heroArtWin.style.setProperty("--art-scale", artScale.value);
+    heroArtWin.style.setProperty("--art-x", artX.value + "px");
+    heroArtWin.style.setProperty("--art-y", artY.value + "px");
+    artScaleVal.textContent = Math.round(artScale.value * 100) + "%";
+    artXVal.textContent = artX.value + "px";
+    artYVal.textContent = artY.value + "px";
+  }
+  function resetArtTransform() {
+    artScale.value = "1";
+    artX.value = "0";
+    artY.value = "0";
+    setArtTransform();
+  }
+  artScale.addEventListener("input", setArtTransform);
+  artX.addEventListener("input", setArtTransform);
+  artY.addEventListener("input", setArtTransform);
+  document.getElementById("resetArtPosBtn").addEventListener("click", resetArtTransform);
+
+  let dragState = null;
+  heroArtWin.addEventListener("pointerdown", (e) => {
+    dragState = {
+      startX: e.clientX,
+      startY: e.clientY,
+      baseX: parseFloat(artX.value),
+      baseY: parseFloat(artY.value),
+    };
+    heroArtWin.classList.add("dragging");
+    heroArtWin.setPointerCapture(e.pointerId);
+  });
+  heroArtWin.addEventListener("pointermove", (e) => {
+    if (!dragState) return;
+    artX.value = Math.max(-120, Math.min(120, Math.round(dragState.baseX + e.clientX - dragState.startX)));
+    artY.value = Math.max(-120, Math.min(120, Math.round(dragState.baseY + e.clientY - dragState.startY)));
+    setArtTransform();
+  });
+  function endDrag() {
+    if (!dragState) return;
+    dragState = null;
+    heroArtWin.classList.remove("dragging");
+  }
+  heroArtWin.addEventListener("pointerup", endDrag);
+  heroArtWin.addEventListener("pointercancel", endDrag);
+  heroArtWin.addEventListener("wheel", (e) => {
+    e.preventDefault();
+    const delta = e.deltaY < 0 ? 0.05 : -0.05;
+    artScale.value = Math.max(0.25, Math.min(4, parseFloat(artScale.value) + delta));
+    setArtTransform();
+  }, { passive: false });
+
+  // ================= 效果控件（全息参数体系） =================
+  const foilToggle = document.getElementById("foilToggle");
+  foilToggle.addEventListener("change", () => heroCard.classList.toggle("foil-on", foilToggle.checked));
+
+  // 通用绑定：滑杆 -> CSS 变量 + 实时值显示
+  function bindVar(inputId, valId, cssVar, cssFmt, displayFmt) {
+    const el = document.getElementById(inputId);
+    const val = document.getElementById(valId);
+    const apply = () => {
+      document.documentElement.style.setProperty(cssVar, cssFmt ? cssFmt(el.value) : el.value);
+      val.textContent = displayFmt ? displayFmt(el.value) : (cssFmt ? cssFmt(el.value) : el.value);
+    };
+    el.addEventListener("input", apply);
+    apply();
+  }
+  const n2 = (v) => (+v).toFixed(2);
+  bindVar("holoOpacity", "holoOpacityVal", "--holo-opacity", n2);
+  bindVar("holoAngle", "holoAngleVal", "--holo-angle", (v) => v + "deg");
+  bindVar("holoPeriod", "holoPeriodVal", "--holo-period", n2);
+  bindVar("holoParallax", "holoParallaxVal", "--holo-parallax", n2);
+  bindVar("holoSat", "holoSatVal", "--holo-sat", n2);
+  bindVar("holoBright", "holoBrightVal", "--holo-bright", n2);
+  bindVar("holoContrast", "holoContrastVal", "--holo-contrast", n2);
+  bindVar("holoBlur", "holoBlurVal", "--holo-blur", (v) => (+v).toFixed(1) + "px");
+  bindVar("spotA", "spotAVal", "--spot-a", n2);
+  bindVar("spotSize", "spotSizeVal", "--spot-size", n2, (v) => "×" + n2(v));
+  bindVar("glossStrength", "glossStrengthVal", "--gloss-a", n2);
+  bindVar("glossAngle", "glossAngleVal", "--gloss-angle", (v) => v + "deg");
+  bindVar("glossBlur", "glossBlurVal", "--gloss-blur", (v) => (+v).toFixed(1) + "px");
+  bindVar("glossWidth", "glossWidthVal", "--gloss-width", (v) => v + "%");
+  bindVar("sparkleStrength", "sparkleStrengthVal", "--sparkle-a", n2);
+  bindVar("sparkleSize", "sparkleSizeVal", "--sparkle-size", n2, (v) => "×" + n2(v));
+  bindVar("sparkleSpeed", "sparkleSpeedVal", "--sparkle-speed", (v) => (+v).toFixed(1) + "s");
+  bindVar("shineA", "shineAVal", "--shine-a", n2);
+
+  // 星星密度 -> 平铺尺寸（密度越高 tile 越小）
+  const sparkleDensity = document.getElementById("sparkleDensity");
+  const sparkleDensityVal = document.getElementById("sparkleDensityVal");
+  sparkleDensity.addEventListener("input", () => {
+    const d = parseFloat(sparkleDensity.value);
+    document.documentElement.style.setProperty("--sparkle-tile", Math.round(130 / d) + "px");
+    sparkleDensityVal.textContent = "×" + n2(d);
+  });
+
+  const artFilm = document.getElementById("artFilm");
+  const artFilmVal = document.getElementById("artFilmVal");
+  artFilm.addEventListener("input", () => {
+    document.documentElement.style.setProperty("--art-film", artFilm.value);
+    artFilmVal.textContent = artFilm.value;
+  });
+  const frameFilm = document.getElementById("frameFilm");
+  const frameFilmVal = document.getElementById("frameFilmVal");
+  frameFilm.addEventListener("input", () => {
+    document.documentElement.style.setProperty("--frame-film", frameFilm.value);
+    frameFilmVal.textContent = frameFilm.value;
+  });
+  // 初始化一次，让值显示与 CSS 变量就位
+  artFilm.dispatchEvent(new Event("input"));
+  frameFilm.dispatchEvent(new Event("input"));
+
+  // ================= 全息风格预设（对应未来 CardData.foil 字段） =================
+  const HOLO_PRESETS = {
+    // ---------- 宝可梦实卡风格 ----------
+    rainbow: { group: "pokemon", label: "稀有 Rare", colors: ["#ffd166", "#ff6b6b", "#c56cf0", "#3ae374", "#18dcff", "#ffd166"], angle: 82, period: 4, parallax: 2.6, sat: 1.15, bright: 1.05, contrast: 1.75, sparkle: 1, density: 1, desc: "经典 Rare Holo：平滑斜彩虹光谱（regular-holo）" },
+    cosmos:  { group: "pokemon", label: "宇宙 Cosmos", colors: ["#ffd166", "#ff6b6b", "#c56cf0", "#3ae374", "#18dcff", "#ffd166"], angle: 82, period: 3, parallax: 2.6, sat: 1.1, bright: 1.15, contrast: 2.2, sparkle: 1.3, density: 1.4, desc: "Cosmos Holo：彩虹更密集 + 高对比 + 细星星，模拟宇宙漩涡" },
+    reverse: { group: "pokemon", label: "反向 Reverse", colors: ["#9aa3b5", "#d8dde5", "#ffffff", "#c8d2e0", "#9aa3b5"], angle: 115, period: 4, parallax: 1.8, sat: 0.6, bright: 0.6, contrast: 1.5, sparkle: 0.8, density: 1, artFilm: 0.08, frameFilm: 1, desc: "Reverse Holo：膜在边框/文字区，画面保持印刷（区域反转）" },
+    radiant: { group: "pokemon", label: "光辉 Radiant", colors: ["#ffffff", "#bcd8ff", "#8fb8ff", "#d8f0ff", "#ffffff"], angle: 55, period: 3.5, parallax: 2.4, sat: 1.5, bright: 1.2, contrast: 2.5, sparkle: 1.5, density: 1.6, mesh: "repeating-linear-gradient(45deg, rgba(255,255,255,0.16) 0 1px, transparent 1px 3px)", meshSize: "9px 9px", meshBlend: "screen", subMix: "hard-light", desc: "Radiant Holo：亮银 + 45° 金属网格 + 柔和彩虹光束" },
+    amazing: { group: "pokemon", label: "奇观 Amazing", colors: ["#8dffb0", "#3ae374", "#18dcff", "#5c8aff", "#8a5fc0"], angle: 133, period: 5, parallax: 3, sat: 0.9, bright: 0.75, contrast: 1.2, sparkle: 1.6, density: 1.8, subMix: "saturation", subA: 0.8, desc: "Amazing Rare：深底 + saturation 混合的柔彩虹浸染 + 高密度星星" },
+    gold:    { group: "pokemon", label: "金色 Secret", colors: ["#f0d98a", "#ffe9b0", "#b8953a", "#8a6a1e", "#f0d98a"], angle: 45, period: 5, parallax: 2, sat: 2, bright: 0.55, contrast: 1.4, sparkle: 1.4, density: 1.5, subMix: "overlay", desc: "Secret Rare (Gold)：金色系低亮度高饱和，贵金属质感" },
+    shiny:   { group: "pokemon", label: "闪光 Shiny", colors: ["#ffd166", "#ff6b6b", "#c56cf0", "#3ae374", "#18dcff", "#ffd166"], angle: 15, period: 3, parallax: 2.2, sat: 2.25, bright: 0.65, contrast: 1.4, sparkle: 1.1, density: 1.2, subMix: "hard-light", desc: "Shiny Rare：横向彩虹 + 对角光束，饱和度高" },
+    // ---------- 自定风格 ----------
+    sunset:  { group: "custom", label: "落日", colors: ["#ffd86b", "#ff9a5a", "#ff5d73", "#c56cf0", "#ff9a5a", "#ffd86b"], angle: 100, period: 4.5, parallax: 2.4, sat: 1.3, bright: 1, contrast: 1.8, sparkle: 0.9, density: 1, desc: "落日暖色：金黄 → 橙 → 玫红 → 紫罗兰，黄昏氛围" },
+    aurora:  { group: "custom", label: "极光", colors: ["#8dffb0", "#3ae374", "#18dcff", "#5c8aff", "#8a5fc0", "#8dffb0"], angle: 70, period: 5, parallax: 2.2, sat: 1.25, bright: 1, contrast: 1.7, sparkle: 0.8, density: 0.8, desc: "极光冷色：青绿 → 冰蓝 → 紫，周期大更平滑" },
+    neon:    { group: "custom", label: "霓虹", colors: ["#ff4fd8", "#8a5fc0", "#18dcff", "#7dffb0", "#ffe94d", "#ff4fd8"], angle: 110, period: 3.5, parallax: 2.8, sat: 1.4, bright: 1.1, contrast: 2, sparkle: 1.2, density: 1.2, desc: "霓虹高对比：品红 → 电光蓝 → 荧光绿，视差最快" },
+    oil:     { group: "custom", label: "油膜", colors: ["#0e2f4a", "#1e5f6b", "#3a7d6b", "#5f9a9a", "#1e3f6b", "#0e2f4a"], angle: 60, period: 6, parallax: 2, sat: 0.85, bright: 0.95, contrast: 1.5, sparkle: 0.5, density: 0.6, desc: "油膜低饱和：深海蓝绿，周期最大最平滑，暗调贵气" },
+    galaxy:  { group: "custom", label: "银河", colors: ["#2b1d5c", "#5c3a8a", "#3a7d9a", "#18dcff", "#7d5cff", "#2b1d5c"], angle: 95, period: 3, parallax: 2, sat: 1.35, bright: 0.9, contrast: 2, sparkle: 1.6, density: 1.8, desc: "银河星空：紫蓝平滑光谱 + 高密度星星" },
+  };
+  // 平滑彩虹：6 色列表直接作为渐变 stop，颜色间自然过渡（无硬边）
+  const stripesOf = (colors) => colors.join(", ");
+  const presetHint = document.getElementById("holoPresetHint");
+  function applyPreset(key) {
+    const p = HOLO_PRESETS[key];
+    document.documentElement.style.setProperty("--holo-stripes", stripesOf(p.colors));
+    document.documentElement.style.setProperty("--holo-angle", p.angle + "deg");
+    document.documentElement.style.setProperty("--holo-period", p.period);
+    document.documentElement.style.setProperty("--holo-parallax", p.parallax);
+    document.documentElement.style.setProperty("--holo-sat", p.sat);
+    document.documentElement.style.setProperty("--holo-bright", p.bright);
+    document.documentElement.style.setProperty("--holo-contrast", p.contrast);
+    document.documentElement.style.setProperty("--sparkle-size", p.sparkle);
+    document.documentElement.style.setProperty("--sparkle-tile", Math.round(130 / p.density) + "px");
+    document.documentElement.style.setProperty("--holo-mesh", p.mesh || "transparent");
+    document.documentElement.style.setProperty("--holo-mesh-size", p.meshSize || "100% 100%");
+    document.documentElement.style.setProperty("--holo-mesh-blend", p.meshBlend || "normal");
+    document.documentElement.style.setProperty("--holo-sub-mix", p.subMix || "overlay");
+    document.documentElement.style.setProperty("--holo-sub-a", p.subA || "0.65");
+    const art = p.artFilm !== undefined ? p.artFilm : 1;
+    const frame = p.frameFilm !== undefined ? p.frameFilm : 0.22;
+    document.documentElement.style.setProperty("--art-film", art);
+    document.documentElement.style.setProperty("--frame-film", frame);
+    // 同步滑杆与值显示
+    const sync = (id, v) => { const el = document.getElementById(id); if (el) { el.value = v; el.dispatchEvent(new Event("input")); } };
+    sync("holoAngle", p.angle);
+    sync("holoPeriod", p.period);
+    sync("holoParallax", p.parallax);
+    sync("holoSat", p.sat);
+    sync("holoBright", p.bright);
+    sync("holoContrast", p.contrast);
+    sync("sparkleSize", p.sparkle);
+    sync("sparkleDensity", p.density);
+    sync("artFilm", art);
+    sync("frameFilm", frame);
+    document.querySelectorAll("#holoPresetPokemon .preset-btn, #holoPresetCustom .preset-btn")
+      .forEach((x) => x.classList.toggle("active", x.dataset.key === key));
+    presetHint.textContent = "当前：" + p.label + " —— " + p.desc + "（对应未来 CardData.foil = \"" + key + "\"）";
+  }
+  const pokemonBtns = document.getElementById("holoPresetPokemon");
+  const customBtns = document.getElementById("holoPresetCustom");
+  for (const [key, p] of Object.entries(HOLO_PRESETS)) {
+    const b = document.createElement("button");
+    b.className = "btn preset-btn";
+    b.dataset.key = key;
+    b.title = p.desc;
+    b.innerHTML = '<i style="background: repeating-linear-gradient(' + p.angle + 'deg, ' + stripesOf(p.colors) + '); background-size: 400% 900%;"></i><span>' + p.label + "</span>";
+    b.addEventListener("click", () => applyPreset(key));
+    (p.group === "pokemon" ? pokemonBtns : customBtns).appendChild(b);
+  }
+  applyPreset("rainbow");
+
+  // 混合模式：auto = 跟随方案（普通卡 color-dodge / 异画 overlay）
+  const holoMix = document.getElementById("holoMix");
+  holoMix.addEventListener("change", () => {
+    if (holoMix.value === "auto") {
+      document.body.classList.remove("mix-manual");
+      document.documentElement.style.removeProperty("--holo-mix");
+    } else {
+      document.body.classList.add("mix-manual");
+      document.documentElement.style.setProperty("--holo-mix", holoMix.value);
+    }
+  });
+
+  // 重置全息参数
+  const RESET_DEFAULTS = {
+    holoOpacity: "0.72", holoAngle: "82", holoPeriod: "4", holoParallax: "2.6",
+    holoSat: "1.15", holoBright: "1.05", holoContrast: "1.75", holoBlur: "0",
+    artFilm: "1", frameFilm: "0.22",
+    spotA: "0.55", spotSize: "1",
+    glossStrength: "0.75", glossAngle: "115", glossBlur: "6", glossWidth: "50",
+    sparkleStrength: "0.75", sparkleSize: "1", sparkleDensity: "1", sparkleSpeed: "2.2",
+    shineA: "0.8", tiltAmt: "14", autoRotSpeed: "1",
+  };
+  document.getElementById("resetHoloBtn").addEventListener("click", () => {
+    for (const [id, def] of Object.entries(RESET_DEFAULTS)) {
+      const el = document.getElementById(id);
+      if (el) { el.value = def; el.dispatchEvent(new Event("input")); }
+    }
+    holoMix.value = "auto";
+    holoMix.dispatchEvent(new Event("change"));
+    applyPreset("rainbow");
+  });
+
+  // ================= 扫光参数（频率 / 速度） =================
+  let sweepT = 0, sweepIdle = 0;
+  let sweepSpeedMs = 1800;    // 单次扫过时长（速度）
+  let sweepIntervalMs = 3000; // 间隔（频率）
+  const sweepSpeed = document.getElementById("sweepSpeed");
+  const sweepFreq = document.getElementById("sweepFreq");
+  const sweepSpeedVal = document.getElementById("sweepSpeedVal");
+  const sweepFreqVal = document.getElementById("sweepFreqVal");
+  sweepSpeed.addEventListener("input", () => {
+    sweepSpeedMs = parseFloat(sweepSpeed.value) * 1000;
+    sweepSpeedVal.textContent = sweepSpeed.value + "s";
+  });
+  sweepFreq.addEventListener("input", () => {
+    sweepIntervalMs = parseFloat(sweepFreq.value) * 1000;
+    sweepFreqVal.textContent = sweepFreq.value + "s";
+  });
+
+  // ================= 3D 倾斜参数 =================
+  let maxTilt = 14;
+  let autoRotSpeed = 1;
+  const tiltAmt = document.getElementById("tiltAmt");
+  const tiltAmtVal = document.getElementById("tiltAmtVal");
+  function setTilt() {
+    maxTilt = parseFloat(tiltAmt.value);
+    document.documentElement.style.setProperty("--tilt-amt", maxTilt + "deg");
+    tiltAmtVal.textContent = maxTilt + "°";
+  }
+  tiltAmt.addEventListener("input", setTilt);
+  setTilt();
+  const autoRotSpeedEl = document.getElementById("autoRotSpeed");
+  const autoRotSpeedVal = document.getElementById("autoRotSpeedVal");
+  function setAutoRotSpeed() {
+    autoRotSpeed = parseFloat(autoRotSpeedEl.value);
+    autoRotSpeedVal.textContent = "×" + n2(autoRotSpeed);
+  }
+  autoRotSpeedEl.addEventListener("input", setAutoRotSpeed);
+  setAutoRotSpeed();
+
+  // ================= 3D 与光照 =================
+  const stage = document.getElementById("stage");
+  const card3d = document.getElementById("card3d");
+  const cardShadow = document.getElementById("cardShadow");
+  const tiltToggle = document.getElementById("tiltToggle");
+  const autoRotate = document.getElementById("autoRotate");
+  let nx = 0, ny = 0, per = 50, lx = 30, ly = 20, hovering = false;
+
+  stage.addEventListener("pointermove", (e) => {
+    const sr = stage.getBoundingClientRect();
+    nx = (e.clientX - sr.left) / sr.width * 2 - 1;
+    ny = (e.clientY - sr.top) / sr.height * 2 - 1;
+    const cr = heroCard.getBoundingClientRect();
+    per = Math.max(0, Math.min(100, (e.clientX - cr.left) / cr.width * 100));
+    lx = Math.max(0, Math.min(100, (e.clientX - cr.left) / cr.width * 100));
+    ly = Math.max(0, Math.min(100, (e.clientY - cr.top) / cr.height * 100));
+    hovering = true;
+  });
+  stage.addEventListener("pointerleave", () => { hovering = false; });
+
+  let rx = 0, ry = 0, idleT = 0, last = performance.now();
+  function loop(now) {
+    const dt = Math.min(100, now - last);
+    last = now;
+    idleT += dt;
+
+    let trx, tryy;
+    if (hovering && tiltToggle.checked) {
+      trx = -ny * maxTilt;
+      tryy = nx * maxTilt;
+    } else if (autoRotate.checked) {
+      trx = Math.sin(idleT * 0.0006 * autoRotSpeed) * maxTilt * 0.35;
+      tryy = Math.cos(idleT * 0.0004 * autoRotSpeed) * maxTilt * 0.45;
+    } else {
+      trx = 0; tryy = 0;
+    }
+    const k = 1 - Math.exp(-dt / 150);
+    rx += (trx - rx) * k;
+    ry += (tryy - ry) * k;
+
+    card3d.style.setProperty("--rx", rx.toFixed(2) + "deg");
+    card3d.style.setProperty("--ry", ry.toFixed(2) + "deg");
+    cardShadow.style.setProperty("--shadow-x", (-nx * 0.7).toFixed(3));
+    cardShadow.style.setProperty("--shadow-y", (-ny * 0.7).toFixed(3));
+
+    let curPer = per, curLx = lx, curLy = ly;
+    if (!hovering) {
+      curPer = 50 + Math.sin(idleT * 0.00045) * 38;
+      curLx = 30 + Math.cos(idleT * 0.0004) * 55;
+      curLy = 20 + Math.sin(idleT * 0.00055) * 45;
+    }
+    heroCard.style.setProperty("--per", curPer.toFixed(1) + "%");
+    heroCard.style.setProperty("--lx", curLx.toFixed(1) + "%");
+    heroCard.style.setProperty("--ly", curLy.toFixed(1) + "%");
+    // 视差基准：把鼠标位置映射到 37~63 / 33~67（pokemon-cards-css 的 background spring 范围），
+    // 避免指针到边缘时条纹滑过头
+    heroCard.style.setProperty("--bx", (37 + curLx * 0.26).toFixed(1) + "%");
+    heroCard.style.setProperty("--by", (33 + curLy * 0.34).toFixed(1) + "%");
+    // 离卡中心距离（0~1）：驱动眩光层亮度，越靠边缘反光越强
+    const dcx = (curLx - 50) / 50, dcy = (curLy - 50) / 50;
+    heroCard.style.setProperty("--pointer-from-center", Math.min(1, Math.sqrt(dcx * dcx + dcy * dcy)).toFixed(3));
+
+    // 扫光：周期性自动扫过（边缘已高斯模糊，见 CSS）
+    if (sweepIdle > 0) {
+      sweepIdle -= dt;
+      if (sweepIdle <= 0) sweepT = 0;
+    } else if (sweepT < 1) {
+      sweepT = Math.min(1, sweepT + dt / sweepSpeedMs);
+      const t = sweepT < 0.5 ? 4 * sweepT * sweepT * sweepT : 1 - Math.pow(-2 * sweepT + 2, 3) / 2;
+      heroCard.style.setProperty("--sweep-x", (-350 + t * 750).toFixed(1) + "px");
+    }
+
+    requestAnimationFrame(loop);
+  }
+  requestAnimationFrame(loop);
+
+  // ================= 卡面材质（19 种 + 默认） =================
+  const MATS = [
+    "cloth", "silver", "alloy", "gold", "foil", "glass",
+    "brushed", "chrome", "brass", "carbon", "pearl", "oil",
+    "marble", "wood", "stone", "lava", "nebula", "neon", "holo",
+  ];
+  const MAT_LABELS = {
+    cloth: "粗布/皮革", silver: "银灰金属", alloy: "蓝紫合金", gold: "金箔",
+    foil: "闪卡箔面", glass: "磨砂玻璃", brushed: "拉丝金属", chrome: "液态铬",
+    brass: "黄铜", carbon: "碳纤维", pearl: "珠光", oil: "油膜全息",
+    marble: "大理石", wood: "木纹", stone: "石板", lava: "岩浆",
+    nebula: "星云", neon: "霓虹", holo: "宝可梦全息",
+  };
+  const matStatus = document.getElementById("matStatus");
+  function applyMaterial(mat) {
+    heroCard.classList.remove("mat-none");
+    MATS.forEach((m) => heroCard.classList.remove("mat-" + m));
+    if (mat !== "none") heroCard.classList.add("mat-" + mat);
+    document.querySelectorAll("#matBtns .btn").forEach((b) =>
+      b.classList.toggle("active", b.dataset.mat === mat));
+    matStatus.textContent = mat === "none"
+      ? "当前材质：默认（类型色底版）"
+      : "当前材质：" + MAT_LABELS[mat];
+  }
+  document.querySelectorAll("#matBtns .btn").forEach((btn) => {
+    btn.addEventListener("click", () => applyMaterial(btn.dataset.mat));
+  });
+  // 材质参考墙
+  const matWall = document.getElementById("matWall");
+  for (const [mat, label] of Object.entries(MAT_LABELS)) {
+    const c = document.createElement("div");
+    c.className = "mat-ref mat-" + mat;
+    c.innerHTML =
+      '<div class="mat-frame"></div>' +
+      '<div class="glow"></div>' +
+      '<div class="gloss"></div>' +
+      '<div class="mat-fx"></div>' +
+      '<div class="sheen-band"><div class="strip"><div class="strip-in"></div></div></div>';
+    const lab = document.createElement("span");
+    lab.className = "ref-label";
+    lab.textContent = label;
+    c.appendChild(lab);
+    c.addEventListener("click", () => applyMaterial(mat));
+    matWall.appendChild(c);
+  }
+
+  // ================= 初始化 =================
+  heroCard.style.setProperty("--type-color", TYPE_COLORS.attack);
+  heroCard.style.setProperty("--rarity-color", RARITY_COLORS.common);
+  heroCard.style.setProperty("--rarity-glow", RARITY_GLOW.common);
+  heroInfoType.childNodes[0].textContent = TYPE_NAMES.attack;
+  buildGallery();
+  applyScheme("a");
+  applyShape();
+  applyArt();
+</script>
+</body>
+</html>

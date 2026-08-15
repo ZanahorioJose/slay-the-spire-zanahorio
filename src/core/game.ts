@@ -12,12 +12,14 @@ import { pickOne, weightedPick } from "./rng";
 import type {
   AncientData,
   CardData,
+  CharacterData,
   EventData,
   EventOption,
   EventOptionResult,
   GameDatabase,
   MapNode,
   MapNodeType,
+  PotionData,
   RelicData,
   RelicPool,
   RunSettings,
@@ -76,20 +78,36 @@ export class Game {
   }
 
   newRun(): RunState {
+    const character = this.currentCharacter();
     return {
       act: 1,
       status: "map",
       player: {
-        hp: this.settings.startingHp ?? 70,
-        maxHp: this.settings.startingHp ?? 70,
-        gold: this.settings.startingGold ?? 99,
-        deck: [...(this.settings.startingDeck ?? STARTING_DECK)],
-        relics: [],
+        hp: this.settings.startingHp ?? character?.startingHp ?? 70,
+        maxHp: this.settings.startingHp ?? character?.startingHp ?? 70,
+        gold: this.settings.startingGold ?? character?.startingGold ?? 99,
+        deck: [
+          ...(this.settings.startingDeck ??
+            character?.startingDeck ??
+            STARTING_DECK),
+        ],
+        relics: [...(character?.startingRelics ?? [])],
+        potions: [],
+        character: character?.id,
       },
       map: generateMap(1),
       currentNodeId: null,
       statuses: {},
     };
+  }
+
+  // 当前角色：优先 settings.characterId，否则用默认（第一个）角色。
+  currentCharacter(): CharacterData | undefined {
+    const specified = this.settings.characterId
+      ? this.db.characters[this.settings.characterId]
+      : undefined;
+    if (specified) return specified;
+    return Object.values(this.db.characters)[0];
   }
 
   reset(): void {
@@ -202,15 +220,24 @@ export class Game {
 
   rollCardReward(quality: "normal" | "elite" | "boss"): CardData[] {
     const rewardPool = quality === "boss" ? "boss" : "reward";
+    const characterId = this.run.player.character;
+    // 卡牌奖励只出现当前角色专属卡与无色卡。
+    const characterOk = (c: CardData): boolean =>
+      !c.character || c.character === characterId;
     const restricted = Object.values(this.db.cards).filter(
-      (c) => c.rarity !== "starter" && inPool(c, rewardPool)
+      (c) =>
+        c.rarity !== "starter" &&
+        characterOk(c) &&
+        inPool(c, rewardPool)
     );
     // If every card is restricted to other pools, fall back to all
     // non-starter cards so rewards never break.
     const pool =
       restricted.length > 0
         ? restricted
-        : Object.values(this.db.cards).filter((c) => c.rarity !== "starter");
+        : Object.values(this.db.cards).filter(
+            (c) => c.rarity !== "starter" && characterOk(c)
+          );
     const picked: CardData[] = [];
     const usedIds = new Set<string>();
     for (let i = 0; i < 3; i++) {
@@ -337,6 +364,9 @@ export class Game {
     for (const cardId of option.addCards ?? []) {
       this.addCardToDeck(cardId);
     }
+    for (const potionId of option.addPotions ?? []) {
+      this.addPotion(potionId);
+    }
     if (option.addRelic) {
       this.addRelic(option.addRelic);
       gainedRelics.push(option.addRelic);
@@ -415,6 +445,18 @@ export class Game {
     );
     if (candidates.length === 0) return undefined;
     return this.db.relics[pickOne(candidates)];
+  }
+
+  rollPotion(): PotionData | undefined {
+    const potions = Object.values(this.db.potions);
+    if (potions.length === 0) return undefined;
+    return pickOne(potions);
+  }
+
+  addPotion(potionId: string): void {
+    if (this.run.player.potions.length < 3) {
+      this.run.player.potions.push(potionId);
+    }
   }
 
   // 先古事件：先回复缺失生命值的 X%（默认 100 = 满血，难度可覆盖），

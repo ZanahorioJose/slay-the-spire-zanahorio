@@ -16,8 +16,10 @@
 | `GETTING_STARTED.md` | 新设备初始化教程（面向玩家） | 启动/安装方式变化时 |
 | `docs/animation-guide.md` | 动画方案（CSS vs Sprite Sheet） | 动画方案变化时 |
 | `docs/art-style.md` | 美术风格设计规范（像素角色 + 3D 材质界面） | 风格/材质设计变化时 |
-| `docs/art-*.html` | 材质演示页（卡牌/怪物/背景） | 素材/材质调整时 |
+| `docs/art-*.html` | 材质演示页（卡牌工作台/怪物/背景） | 素材/材质调整时 |
+| `docs/emboss.md` | 卡牌浮雕方案（阴影 / SVG 光照 / 叠层混合） | 浮雕/全息技术变化时 |
 | `CHANGELOG.md` | 开发日志（Keep a Changelog 格式） | 每次完成改动后追加 |
+| `dialogue.md` | 项目对话纪要（讨论结论与决策时间线，指向 docs/ 规范） | 重要讨论结束后 |
 
 ## 常用命令
 

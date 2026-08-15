@@ -338,6 +338,21 @@
     background-size: 220% 100%;
     animation: neon-sweep 3.2s ease-in-out infinite;
   }
+
+  /* 宝可梦全息（参考 simeydotme/pokemon-cards-css）：sparkles 星星层 + color-dodge + 动态高光 */
+  .mat-holo {
+    --frame-bg: conic-gradient(from 0deg, #ffd166, #ff6b6b, #c56cf0, #3ae374, #18dcff, #ffd166);
+    --body-bg: linear-gradient(160deg, #20242e 0%, #171b24 70%, #101319 100%);
+    --gloss-a: 0.35;
+    --glow-bg: radial-gradient(ellipse, rgba(255,209,102,0.4), transparent 70%);
+  }
+  .mat-holo .mat-fx { opacity: 1; }
+  .mat-holo .mat-fx::before {
+    opacity: 0.85;
+    background: url("../assets/ui/sparkles.gif") center / cover no-repeat;
+    mix-blend-mode: color-dodge;
+    animation: holo-flicker 3s ease-in-out infinite alternate;
+  }
   .mat-pearl .m-name, .mat-marble .m-name { color: #3d362d; }
 
   @keyframes foil-rotate { to { transform: rotate(360deg); } }
@@ -356,6 +371,10 @@
   @keyframes neon-sweep {
     0% { background-position: 130% 0; }
     100% { background-position: -130% 0; }
+  }
+  @keyframes holo-flicker {
+    from { opacity: 0.65; }
+    to { opacity: 1; }
   }
 
   /* ---------- 像素精灵 ---------- */
@@ -582,6 +601,7 @@
         <button class="mat-btn" data-mat="lava">岩浆</button>
         <button class="mat-btn" data-mat="nebula">星云</button>
         <button class="mat-btn" data-mat="neon">霓虹</button>
+        <button class="mat-btn" data-mat="holo">宝可梦全息</button>
       </div>
 
       <h2>2 · 动作状态（CSS 占位）</h2>
@@ -786,7 +806,7 @@
     foil: "闪卡箔面", glass: "磨砂玻璃", brushed: "拉丝金属", chrome: "液态铬",
     brass: "黄铜", carbon: "碳纤维", pearl: "珠光", oil: "油膜全息",
     marble: "大理石", wood: "木纹", stone: "石板", lava: "岩浆",
-    nebula: "星云", neon: "霓虹",
+    nebula: "星云", neon: "霓虹", holo: "宝可梦全息",
   };
   const wall = document.getElementById("refWall");
   for (const [mat, label] of Object.entries(MAT_LABELS)) {

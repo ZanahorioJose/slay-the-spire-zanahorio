@@ -136,7 +136,13 @@ export function describeNodeType(type: MapNodeType): string {
 }
 
 export function randomActBoss(act: number): string {
-  return act % 2 === 1 ? "ancient_guardian" : "dragon";
+  if (act === 1) {
+    return pickOne(["ancient_guardian", "vantom", "ceremonial_beast"]);
+  }
+  if (act === 2) {
+    return pickOne(["dragon", "knowledge_demon", "kaiser_crab"]);
+  }
+  return pickOne(["queen", "subject"]);
 }
 
 export function randomElite(): string {

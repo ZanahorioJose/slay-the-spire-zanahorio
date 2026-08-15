@@ -1,6 +1,7 @@
 import type { GameDatabase } from "../core/types";
 import { el, button } from "./dom";
 import { renderCard } from "./cardView";
+import { showConfirm } from "./modal";
 
 export function showUpgradePicker(
   deck: string[],
@@ -29,15 +30,13 @@ export function showUpgradePicker(
       if (upgraded) pair.appendChild(renderCard(upgraded, { small: true }));
       pair.title = `升级第 ${index + 1} 张「${card.name}」`;
       pair.addEventListener("click", () => {
-        if (
-          !window.confirm(
-            `确定升级第 ${index + 1} 张「${card.name}」？升级后无法撤销。`
-          )
-        ) {
-          return;
-        }
-        overlay.remove();
-        onUpgrade(cardId, index);
+        showConfirm(
+          `确定升级第 ${index + 1} 张「${card.name}」？升级后无法撤销。`,
+          () => {
+            overlay.remove();
+            onUpgrade(cardId, index);
+          }
+        );
       });
       grid.appendChild(pair);
     }
