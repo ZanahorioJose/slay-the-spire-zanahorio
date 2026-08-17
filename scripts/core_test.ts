@@ -1,6 +1,15 @@
 import { Game } from "../src/core/game";
 import { buildDatabase } from "../src/data";
 import { PASSIVE_CARD_FIXES } from "../src/data/passive_card_fixes";
+import {
+  COLS,
+  ROOM_ROWS_BY_ACT,
+  generateMap,
+  roomRowsForAct,
+  totalRowsForAct,
+  treasureRowForAct,
+} from "../src/core/map";
+import type { MapNode, MapNodeType } from "../src/core/types";
 
 function playOneRun(runId: number): void {
   const db = buildDatabase();
@@ -1576,6 +1585,188 @@ for (let i = 0; i < 5; i++) {
     );
   }
   console.log(`localization all-Chinese (${all.length} cards) (ok)`);
+}
+
+// 地图结构（尖塔 2 规则）：固定楼层数、固定宝箱/篝火/战斗层、
+// 同层不相连、连线不交叉、全员可达、无死路。
+{
+  const byId = (map: MapNode[]): Map<string, MapNode> =>
+    new Map(map.map((n) => [n.id, n]));
+  const rowOf = (map: MapNode[], id: string): number =>
+    byId(map).get(id)!.row;
+
+  for (let trial = 0; trial < 30; trial++) {
+    for (const act of [1, 2, 3]) {
+      const map = generateMap(act);
+      const byRow = new Map<number, MapNode[]>();
+      for (const n of map) {
+        const list = byRow.get(n.row) ?? [];
+        list.push(n);
+        byRow.set(n.row, list);
+      }
+
+      const roomRows = roomRowsForAct(act);
+      const totalRows = totalRowsForAct(act);
+      const treasureRow = treasureRowForAct(act);
+
+      // 固定楼层数与每层固定房间数。
+      if (byRow.size !== totalRows) {
+        throw new Error(`act ${act}: expected ${totalRows} floors, got ${byRow.size}`);
+      }
+      if (byRow.get(0)!.length !== 1 || byRow.get(totalRows - 1)!.length !== 1) {
+        throw new Error(`act ${act}: entry/boss row should have 1 node`);
+      }
+      for (let row = 1; row <= roomRows; row++) {
+        if (byRow.get(row)!.length !== COLS) {
+          throw new Error(
+            `act ${act}: row ${row} should have ${COLS} nodes, got ${byRow.get(row)!.length}`
+          );
+        }
+      }
+
+      // 固定层类型：先古后首层必战斗、中部必宝箱、Boss 前必篝火。
+      const allType = (row: number): MapNodeType[] =>
+        byRow.get(row)!.map((n) => n.type);
+      if (byRow.get(0)![0]!.type !== "ancient") throw new Error("row 0 not ancient");
+      if (byRow.get(totalRows - 1)![0]!.type !== "boss") {
+        throw new Error("last row not boss");
+      }
+      if (!allType(1).every((t) => t === "battle")) {
+        throw new Error("row 1 should be all battles");
+      }
+      if (!allType(treasureRow).every((t) => t === "treasure")) {
+        throw new Error(`treasure row ${treasureRow} not all treasure`);
+      }
+      if (!allType(roomRows).every((t) => t === "rest")) {
+        throw new Error("pre-boss row should be all rest");
+      }
+
+      // 行内水平位置：同层房间按 col 顺序从左到右且互不重叠，
+      // 单节点行（先古/Boss）居中。
+      for (let row = 0; row < totalRows; row++) {
+        const sorted = byRow.get(row)!.sort((a, b) => a.col - b.col);
+        if (sorted.length === 1) {
+          if (sorted[0]!.x !== 0.5) {
+            throw new Error(`act ${act}: single-node row ${row} x=${sorted[0]!.x}`);
+          }
+          continue;
+        }
+        for (let i = 0; i < sorted.length; i++) {
+          const x = sorted[i]!.x!;
+          if (x < 0 || x > 1) {
+            throw new Error(`act ${act}: node x out of range: ${x}`);
+          }
+          if (i > 0 && x <= sorted[i - 1]!.x!) {
+            throw new Error(
+              `act ${act}: row ${row} nodes not ordered by x (col order broken)`
+            );
+          }
+        }
+      }
+
+      // 精英 4 / 商店 3；前 5 个房间层无精英、无篝火（第 6 层起）。
+      const eliteCount = map.filter((n) => n.type === "elite").length;
+      const shopCount = map.filter((n) => n.type === "shop").length;
+      if (eliteCount !== 4) throw new Error(`act ${act}: elites=${eliteCount}, want 4`);
+      if (shopCount !== 3) throw new Error(`act ${act}: shops=${shopCount}, want 3`);
+      for (let row = 1; row <= 5; row++) {
+        for (const n of byRow.get(row)!) {
+          if (n.type === "elite" || n.type === "rest") {
+            throw new Error(`act ${act}: elite/rest in first 5 rows at row ${row}`);
+          }
+        }
+      }
+      if (byRow.get(6)?.some((n) => n.type === "elite")) {
+        throw new Error(`act ${act}: elite on room row 6 (forbidden by v0.101 rule)`);
+      }
+
+      // 同层不相连 + 连线不交叉：按源节点水平位置 x 排序后，
+      // 目标节点 x 必须单调不递减（x 顺序与 col 顺序一致）。
+      for (let row = 0; row < totalRows - 1; row++) {
+        const upper = byRow.get(row)!.sort((a, b) => a.x! - b.x!);
+        const edges: Array<[number, number, number, number]> = [];
+        for (const src of upper) {
+          for (const nextId of src.next) {
+            const dstRow = rowOf(map, nextId);
+            if (dstRow !== row + 1) {
+              throw new Error(`act ${act}: edge from row ${row} to row ${dstRow}`);
+            }
+            const dst = byId(map).get(nextId)!;
+            edges.push([src.x!, dst.x!, src.col, dst.col]);
+          }
+        }
+        edges.sort((a, b) => a[0] - b[0] || a[1] - b[1]);
+        for (let e = 1; e < edges.length; e++) {
+          if (edges[e]![1]! < edges[e - 1]![1]!) {
+            throw new Error(
+              `act ${act}: crossing edges between rows ${row}/${row + 1}: ${JSON.stringify(edges)}`
+            );
+          }
+        }
+      }
+
+      // 可达性与无死路：除入口外全员可到达；除 Boss 外每个节点都有出边。
+      const reachable = new Set<string>();
+      const queue = [byRow.get(0)![0]!.id];
+      while (queue.length > 0) {
+        const id = queue.shift()!;
+        if (reachable.has(id)) continue;
+        reachable.add(id);
+        for (const nextId of byId(map).get(id)!.next) queue.push(nextId);
+      }
+      if (reachable.size !== map.length) {
+        throw new Error(
+          `act ${act}: ${map.length - reachable.size} nodes unreachable (trial ${trial})`
+        );
+      }
+      for (const n of map) {
+        if (n.type !== "boss" && n.next.length === 0) {
+          throw new Error(`act ${act}: dead-end node ${n.id}`);
+        }
+      }
+      // 下层每个节点都有入边（没有无法从上层进入的房间）。
+      for (let row = 1; row < totalRows; row++) {
+        for (const n of byRow.get(row)!) {
+          const incoming = map.filter(
+            (m) => m.row === row - 1 && m.next.includes(n.id)
+          ).length;
+          if (incoming === 0) {
+            throw new Error(`act ${act}: node ${n.id} has no incoming edge`);
+          }
+        }
+      }
+    }
+  }
+
+  if (ROOM_ROWS_BY_ACT[1] !== 15 || ROOM_ROWS_BY_ACT[2] !== 14 || ROOM_ROWS_BY_ACT[3] !== 13) {
+    throw new Error("room row counts should be 15/14/13 per act");
+  }
+  if (treasureRowForAct(1) !== 9 || treasureRowForAct(2) !== 8 || treasureRowForAct(3) !== 7) {
+    throw new Error("treasure row should be 9/8/7 per act");
+  }
+  console.log("map structure (fixed floors / fixed chest-rest-battle / no crossing) (ok)");
+}
+
+// 地图访问记录：进入节点写入 visitedNodes（去重），换幕清空。
+{
+  const db = buildDatabase();
+  const game = new Game(db);
+  const entry = game.run.map.find((n) => n.row === 0);
+  if (!entry) throw new Error("no entry node");
+  game.enterNode(entry);
+  if (!game.run.visitedNodes?.includes(entry.id)) {
+    throw new Error("enterNode should record visited node");
+  }
+  const count = game.run.visitedNodes.length;
+  game.enterNode(entry);
+  if (game.run.visitedNodes.length !== count) {
+    throw new Error("duplicate visit should be deduped");
+  }
+  game.advanceAct();
+  if ((game.run.visitedNodes ?? []).length !== 0) {
+    throw new Error("advanceAct should reset visited nodes");
+  }
+  console.log("map visited tracking (ok)");
 }
 
 console.log("ALL CORE TESTS PASSED");

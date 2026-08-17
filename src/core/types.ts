@@ -562,6 +562,9 @@ export interface MapNode {
   col: number;
   type: MapNodeType;
   next: string[];
+  // 行内水平位置（0~1，左→右）。同层房间不再严格对齐，
+  // 但保持与 col 一致的左右顺序，保证层间连线不交叉。
+  x?: number;
 }
 
 export interface PlayerRunState {
@@ -607,6 +610,8 @@ export interface RunState {
   map: MapNode[];
   currentNodeId: string | null;
   statuses: Record<string, number>;
+  // 本幕已进入过的节点 id（用于地图上区分「已到达」与「未到达」）。
+  visitedNodes?: string[];
 }
 
 export interface GameDatabase {

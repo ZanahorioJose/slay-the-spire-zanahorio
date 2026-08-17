@@ -98,6 +98,7 @@ export class Game {
       map: generateMap(1),
       currentNodeId: null,
       statuses: {},
+      visitedNodes: [],
     };
   }
 
@@ -123,6 +124,10 @@ export class Game {
 
   enterNode(node: MapNode): void {
     this.run.currentNodeId = node.id;
+    const visited = this.run.visitedNodes ?? [];
+    if (!visited.includes(node.id)) {
+      this.run.visitedNodes = [...visited, node.id];
+    }
     switch (node.type) {
       case "battle":
       case "elite":
@@ -418,6 +423,7 @@ export class Game {
     this.run.act += 1;
     this.run.map = generateMap(this.run.act);
     this.run.currentNodeId = null;
+    this.run.visitedNodes = [];
     this.run.status = "map";
   }
 

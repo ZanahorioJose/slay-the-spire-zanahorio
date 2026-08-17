@@ -12,8 +12,9 @@
 
 | 文档 | 定位 | 更新时机 |
 | --- | --- | --- |
-| `README.md` | 功能手册（面向玩家） | 功能上线后 |
+| `README.md` | GitHub 展示页 / 游戏介绍（面向玩家与访客） | 宣传/介绍内容变化时 |
 | `GETTING_STARTED.md` | 新设备初始化教程（面向玩家） | 启动/安装方式变化时 |
+| `docs/DEVELOPMENT.md` | 开发者文档：功能清单、架构细节、核心文件 | 功能/架构变化时 |
 | `docs/animation-guide.md` | 动画方案（CSS vs Sprite Sheet） | 动画方案变化时 |
 | `docs/art-style.md` | 美术风格设计规范（像素角色 + 3D 材质界面） | 风格/材质设计变化时 |
 | `docs/art-*.html` | 材质演示页（卡牌工作台/怪物/背景） | 素材/材质调整时 |
@@ -43,7 +44,7 @@ scripts/     测试与工具（core_test.ts / e2e_test.py / copy-data.mjs / star
 docs/        设计文档与规范讨论（animation-guide.md / art-style.md / 预览与测试页）
 assets/      实际美术素材（卡图/精灵表/UI 贴图/背景/材质包，规范见 docs/art-style.md §10）
 
-根目录文档：`README.md`（功能手册）、`GETTING_STARTED.md`（初始化教程）、`CHANGELOG.md`（开发日志）、`AGENTS.md`（本文档）
+根目录文档：`README.md`（GitHub 展示页）、`GETTING_STARTED.md`（初始化教程）、`CHANGELOG.md`（开发日志）、`AGENTS.md`（本文档）
 ```
 
 ## 关键架构约束（改代码前必读）
@@ -67,13 +68,13 @@ assets/      实际美术素材（卡图/精灵表/UI 贴图/背景/材质包，
 
 ## 工作流要求
 
-1. 改动前：读 `README.md`（功能现状）、`CHANGELOG.md`（近期日志）
+1. 改动前：读 `docs/DEVELOPMENT.md`（功能现状）、`CHANGELOG.md`（近期日志）
 2. 改动后验证（按影响范围）：
    - `npx tsc --noEmit` 必须 0 错误
    - 核心逻辑改动：跑核心逻辑测试，全部通过
    - UI/流程改动：`npm run dev` 起服人工验证关键路径
    - 提交前：`npm run build` 成功
-3. 完成后更新文档：`CHANGELOG.md` 追加开发日志（Keep a Changelog 格式：日期 + Added/Changed/Fixed/Removed）；功能变化同步 `README.md`；启动/安装方式变化同步 `GETTING_STARTED.md`
+3. 完成后更新文档：`CHANGELOG.md` 追加开发日志（Keep a Changelog 格式：日期 + Added/Changed/Fixed/Removed）；功能/架构变化同步 `docs/DEVELOPMENT.md`；宣传/介绍内容变化同步 `README.md`；启动/安装方式变化同步 `GETTING_STARTED.md`
 4. 提交纪律：只提交源码、配置、文档与正式数据；`node_modules/`、`dist/`、`scripts/core_test.mjs`、`data/save.json`、`.codex/`、`scripts/shots/` 等不入库（见 `.gitignore`）
 
 ## 环境注意事项

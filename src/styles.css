@@ -294,7 +294,9 @@ button {
   height: 100%;
   display: flex;
   flex-direction: column;
-  padding: 16px 24px;
+  padding: 12px 24px;
+  overflow: hidden;
+  position: relative;
 }
 
 .map-header {
@@ -311,14 +313,111 @@ button {
   font-weight: bold;
 }
 
-.map-grid {
+.map-body {
+  display: flex;
   flex: 1;
-  display: grid;
-  gap: 18px 14px;
-  align-content: center;
-  justify-items: center;
-  padding: 10px 0;
+  min-height: 0;
+  align-items: flex-start;
+  overflow-y: auto;
+  /* 为右侧固定图例预留空间，图例不参与滚动 */
+  padding-right: 190px;
+}
+
+.map-grid {
+  flex: 1 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  justify-content: center;
+  align-items: center;
+  padding: 8px 0;
   position: relative;
+}
+
+.map-row {
+  display: flex;
+  align-items: center;
+  width: min(620px, 100%);
+  padding: 2px 4px;
+  border-radius: 8px;
+}
+
+.map-row:nth-child(even) {
+  background: rgba(255, 255, 255, 0.025);
+}
+
+.map-floor-label {
+  flex: none;
+  width: 54px;
+  font-size: 11px;
+  color: #5f6a84;
+  text-align: right;
+  letter-spacing: 0.5px;
+  white-space: nowrap;
+}
+
+.map-floor-label.is-battle {
+  color: #d08a8a;
+}
+
+.map-floor-label.is-treasure {
+  color: #f0d98a;
+}
+
+.map-floor-label.is-rest {
+  color: #e59a63;
+}
+
+.map-nodes {
+  position: relative;
+  flex: 1;
+  height: 44px;
+}
+
+.map-legend {
+  position: absolute;
+  top: 56px;
+  right: 24px;
+  flex: none;
+  width: 172px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px 8px;
+  border-radius: 10px;
+  border: 1px solid #3a4254;
+  background: rgba(23, 28, 38, 0.94);
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.35);
+}
+
+.map-legend-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  padding: 4px 8px;
+  border-radius: 8px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: #b7bfcf;
+  font-size: 12px;
+  cursor: default;
+  transition: border-color 0.15s, background 0.15s, box-shadow 0.15s;
+}
+
+.map-legend-item:hover {
+  border-color: #6f8fd0;
+  background: #26324a;
+  box-shadow: 0 0 8px rgba(111, 143, 208, 0.35);
+}
+
+.map-legend-icon {
+  font-size: 15px;
+  line-height: 1;
+}
+
+.map-legend-name {
+  white-space: nowrap;
 }
 
 .map-paths {
@@ -332,36 +431,44 @@ button {
 
 .map-path {
   fill: none;
-  stroke: #394154;
-  stroke-width: 2.5;
+  stroke: #2b3342;
+  stroke-width: 2;
   stroke-linecap: round;
+  opacity: 0.9;
 }
 
 .map-path.active {
   stroke: #f0d98a;
-  stroke-width: 4;
+  stroke-width: 3;
   filter: drop-shadow(0 0 5px rgba(240, 217, 138, 0.55));
 }
 
 .map-node {
-  position: relative;
+  position: absolute;
+  top: 50%;
+  left: 0;
+  transform: translate(-50%, -50%);
   z-index: 1;
-  width: 120px;
-  height: 70px;
-  border-radius: 10px;
-  border: 1px solid #3a4254;
-  background: #1d2330;
+  width: 96px;
+  height: 40px;
+  border-radius: 8px;
+  border: 1px solid #46536f;
+  background: #222938;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 4px;
-  opacity: 0.45;
+  gap: 2px;
+  opacity: 1;
+}
+
+.map-node.boss {
+  border-color: #b04050;
 }
 
 .map-node.reachable {
-  opacity: 1;
   border-color: #6f8fd0;
+  background: #26324a;
   box-shadow: 0 0 12px rgba(111, 143, 208, 0.35);
 }
 
@@ -371,39 +478,72 @@ button {
 
 .map-node.reachable.clickable:hover {
   border-color: #9fc0ff;
-  transform: scale(1.05);
+  transform: translate(-50%, -50%) scale(1.05);
 }
 
 .map-node.current {
   border-color: #f0d98a;
-  opacity: 1;
+  background: #2e2a1b;
+  box-shadow: 0 0 14px rgba(240, 217, 138, 0.4);
 }
 
 .map-node.visited {
-  opacity: 0.25;
+  background: #161b25;
+  border-color: #2b3240;
+  box-shadow: none;
 }
 
-.map-node.boss {
-  border-color: #b04050;
+.map-node.visited .map-node-art {
+  filter: grayscale(0.75);
+}
+
+.map-node.visited .map-node-type {
+  color: #59647c;
+}
+
+.map-node.legend-match {
+  border-color: #ffd76a;
+  background: #332d1a;
+  box-shadow: 0 0 16px rgba(255, 215, 106, 0.55);
+  z-index: 2;
+}
+
+.map-node.legend-dim {
+  opacity: 0.18;
+  filter: grayscale(0.7) brightness(0.75);
+  box-shadow: none;
 }
 
 .map-node-art {
-  font-size: 26px;
+  font-size: 17px;
+  line-height: 1;
 }
 
 .map-node-type {
-  font-size: 12px;
+  font-size: 10px;
   color: #b7bfcf;
 }
 
 .map-overlay-panel {
-  width: min(760px, 94vw);
+  width: min(860px, 94vw);
+  max-width: min(880px, 96vw);
   max-height: 88vh;
-  overflow-y: auto;
+  overflow: hidden;
+  position: relative;
 }
 
 .map-overlay-panel .map-grid {
   min-height: 520px;
+}
+
+.map-overlay-panel .map-body {
+  width: 100%;
+  padding-right: 190px;
+}
+
+.map-overlay-panel .map-legend {
+  top: 74px;
+  right: 20px;
 }
 
 /* ---------- Battle ---------- */
@@ -506,7 +646,8 @@ button {
 
 .enemy-card {
   width: 190px;
-  background: #1d2330;
+  position: relative;
+  overflow: hidden;
   border: 1px solid #394154;
   border-radius: 10px;
   padding: 12px;
@@ -514,6 +655,87 @@ button {
   flex-direction: column;
   gap: 8px;
   transition: transform 0.12s, border-color 0.12s;
+  background: transparent;
+  /* 材质尺寸系数（卡牌 250px 为基准），供材质层按比例缩放 */
+  --k: 0.62;
+  --enemy-color: #9aa3b5;
+}
+
+/* 怪物卡平面卡面：与卡牌同语言（材质底版 + 内凹画窗 + 描边） */
+.enemy-face {
+  position: absolute;
+  inset: 0;
+  border-radius: 10px;
+  background:
+    linear-gradient(160deg,
+      color-mix(in srgb, var(--enemy-color) 60%, #cfd6e4) 0%,
+      color-mix(in srgb, var(--enemy-color) 34%, #20242e) 45%,
+      #141821 100%) border-box;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.08);
+  overflow: hidden;
+  z-index: 0;
+}
+
+.enemy-face::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(ellipse 120% 70% at 50% 0%,
+      color-mix(in srgb, var(--enemy-color) 20%, transparent), transparent 62%),
+    linear-gradient(160deg, #232837 0%, #181c28 55%, #10131b 100%);
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.06),
+    inset 0 -22px 32px rgba(0, 0, 0, 0.42);
+}
+
+/* 材质边框层（复用卡牌材质变量 --frame-bg / --body-bg） */
+.enemy-mat-frame {
+  position: absolute;
+  inset: -3px;
+  border-radius: 12px;
+  background: var(--frame-bg);
+  overflow: hidden;
+  z-index: 2;
+  pointer-events: none;
+  display: none;
+}
+
+.enemy-sheen {
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  pointer-events: none;
+  opacity: 0;
+  background:
+    linear-gradient(115deg, transparent 30%, rgba(255, 255, 255, 0.18) 50%, transparent 70%);
+}
+
+.enemy-card.mat-foil .enemy-mat-frame { display: block; background: transparent; }
+.enemy-card.mat-foil .enemy-mat-frame::before {
+  content: "";
+  position: absolute;
+  inset: -100%;
+  background: var(--frame-bg);
+  animation: foil-rotate 8s linear infinite;
+}
+.enemy-card.mat-foil .enemy-sheen { opacity: 1; }
+
+/* 内容层（意图/名字/血条/状态）必须浮在卡面底版之上：
+   enemy-face 是 absolute z-index:0，static 内容会被其不透明背景盖住 */
+.enemy-card > :not(.enemy-face):not(.enemy-mat-frame):not(.enemy-sheen) {
+  position: relative;
+  z-index: 4;
+}
+
+/* 材质卡面底版：材质选中时怪物卡用 --body-bg（与卡牌一致） */
+.enemy-card.mat-cloth .enemy-face::before,
+.enemy-card.mat-silver .enemy-face::before,
+.enemy-card.mat-alloy .enemy-face::before,
+.enemy-card.mat-gold .enemy-face::before,
+.enemy-card.mat-foil .enemy-face::before,
+.enemy-card.mat-glass .enemy-face::before {
+  background: var(--body-bg);
 }
 
 .enemy-card.highlight {
@@ -1150,7 +1372,7 @@ button {
 
 /* ---------- 六种材质（art-card-studio.html 材质库） ---------- */
 
-.card.mat-cloth {
+.card.mat-cloth, .enemy-card.mat-cloth {
   --frame-bg: linear-gradient(180deg, #3a4254, #262c3a);
   --body-bg:
     repeating-linear-gradient(0deg, rgba(255, 255, 255, 0.014) 0 1px, transparent 1px 3px),
@@ -1158,19 +1380,19 @@ button {
   --gloss-a: 0.12;
 }
 
-.card.mat-silver {
+.card.mat-silver, .enemy-card.mat-silver {
   --frame-bg: linear-gradient(160deg, #e2e8f2 0%, #9aa3b5 40%, #46536f 95%);
   --body-bg: linear-gradient(160deg, #39414f 0%, #222838 62%, #171b25 100%);
   --gloss-a: 0.35;
 }
 
-.card.mat-alloy {
+.card.mat-alloy, .enemy-card.mat-alloy {
   --frame-bg: linear-gradient(160deg, #c3baf5 0%, #7b6fd0 45%, #3a3165 100%);
   --body-bg: linear-gradient(160deg, #37314a 0%, #242034 62%, #17131f 100%);
   --gloss-a: 0.3;
 }
 
-.card.mat-gold {
+.card.mat-gold, .enemy-card.mat-gold {
   --frame-bg: linear-gradient(150deg, #ffe9b0 0%, #f0d98a 28%, #b8953a 60%, #6e561d 100%);
   --body-bg: linear-gradient(160deg, #4a3d1e 0%, #2d2413 55%, #1d180d 100%);
   --gloss-a: 0.45;
@@ -1184,7 +1406,7 @@ button {
   text-shadow: 0 1px 0 rgba(0, 0, 0, 0.65), 0 0 12px rgba(240, 217, 138, 0.5);
 }
 
-.card.mat-foil {
+.card.mat-foil, .enemy-card.mat-foil {
   --frame-bg: conic-gradient(from 0deg, #f0d98a, #e06a5a, #8a5fc0, #4f7fc4, #8fe0a8, #f0d98a);
   --body-bg: linear-gradient(160deg, #33303e 0%, #232030 62%, #16141c 100%);
   --gloss-a: 0.32;
@@ -1209,7 +1431,7 @@ button {
   }
 }
 
-.card.mat-glass {
+.card.mat-glass, .enemy-card.mat-glass {
   --frame-bg: linear-gradient(160deg, rgba(255, 255, 255, 0.55), rgba(255, 255, 255, 0.1));
   --body-bg: linear-gradient(160deg, rgba(255, 255, 255, 0.13), rgba(255, 255, 255, 0.04));
   --gloss-a: 0.55;

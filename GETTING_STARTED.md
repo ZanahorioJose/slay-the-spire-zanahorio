@@ -1,7 +1,7 @@
 # 新设备初始化教程
 
 > 用途：在另一台电脑上开始玩《杀戮尖塔 DIY》。大约 5 分钟即可跑起来。
-> 本教程只讲「怎么启动游戏」；游戏功能与 DIY 说明见 `README.md`，项目演进记录见 `CHANGELOG.md`。
+> 本教程只讲「怎么启动游戏」；游戏介绍见 `README.md`，功能与 DIY 说明见 `docs/DEVELOPMENT.md`，项目演进记录见 `CHANGELOG.md`。
 
 ## 1. 环境要求
 

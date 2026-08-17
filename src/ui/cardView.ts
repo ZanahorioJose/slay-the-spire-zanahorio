@@ -211,21 +211,40 @@ export function renderBar(
 export function renderEnemyCard(
   enemy: EnemyCombatState,
   intent: string,
-  opts: { onClick?: () => void; highlight?: boolean } = {}
+  opts: { onClick?: () => void; highlight?: boolean; material?: string } = {}
 ): HTMLElement {
   const node = el(
     "div",
-    `enemy-card${opts.highlight ? " highlight" : ""}${
-      opts.onClick ? " clickable" : ""
-    }`
+    `enemy-card mat-${opts.material ?? "silver"}${
+      opts.highlight ? " highlight" : ""
+    }${opts.onClick ? " clickable" : ""}`
   );
-  const top = el("div", "enemy-top");
+  // 平面卡质感层：卡面底 / 材质边框 / 闪卡光泽。
+  node.append(
+    el("div", "enemy-face"),
+    el("div", "enemy-mat-frame"),
+    el("div", "enemy-sheen")
+  );
+  // 攻击意图放卡牌上方。
+  const intentIcon = intent.startsWith("攻击")
+    ? "⚔"
+    : intent.startsWith("防御")
+      ? "🛡"
+      : intent.startsWith("强化")
+        ? "✨"
+        : intent.startsWith("削弱")
+          ? "💫"
+          : "❗";
+  const intentEl = el("div", "enemy-intent", `${intentIcon} ${intent}`);
+  // 中部：形象 + 名字。
   const art = el(
     "div",
     `enemy-art enemy-anim-${enemy.anim ?? "idle"}`,
     enemy.art ?? "👾"
   );
   const name = el("div", "enemy-name", enemy.name);
+  const top = el("div", "enemy-top", [art, name]);
+  // 底部：血条 / 格挡 / 状态条。
   const hpRow = el("div", "enemy-hp-row");
   hpRow.append(
     renderBar(enemy.hp, enemy.maxHp),
@@ -233,9 +252,7 @@ export function renderEnemyCard(
   );
   const block = enemy.block > 0 ? el("div", "enemy-block", `🛡 ${enemy.block}`) : null;
   const chips = renderStatusChips(enemy.statuses);
-  const intentRow = el("div", "enemy-intent", `意图：${intent}`);
-  top.append(art, name);
-  node.append(top, hpRow, block ?? el("div"), chips ?? el("div"), intentRow);
+  node.append(intentEl, top, hpRow, block ?? el("div"), chips ?? el("div"));
   if (opts.onClick) {
     node.addEventListener("click", opts.onClick);
   }

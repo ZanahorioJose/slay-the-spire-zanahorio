@@ -1,0 +1,602 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>怪物卡片测试 · 白边 + 3D 厚度 + 卡牌材质</title>
+<style>
+  :root {
+    --bg-0: #0d1017;
+    --bg-1: #14171f;
+    --panel-2: #1d2330;
+    --border: #2b3245;
+    --gold: #f0d98a;
+    --gold-bright: #ffe9b0;
+    --silver: #9aa3b5;
+    --text: #e8e6e3;
+    --text-dim: #8f99ad;
+    --text-faint: #566070;
+    --stroke: 3;   /* 白边粗细（px） */
+    --edge-w: 3;   /* 材质包边宽（px，贴纸模式） */
+    --thick: 10;   /* 3D 厚度（px） */
+    --rx: 0deg;
+    --ry: 0deg;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: radial-gradient(ellipse at 50% 0%, #1a2130 0%, var(--bg-0) 70%);
+    color: var(--text);
+    font-family: "PingFang SC", "Microsoft YaHei", sans-serif;
+    padding: 36px 32px 70px;
+    min-height: 100vh;
+  }
+  h1 { font-size: 24px; letter-spacing: 2px; color: var(--gold); }
+  h1 small { font-size: 13px; color: var(--text-dim); margin-left: 10px; }
+  .sub { color: var(--text-dim); font-size: 13px; margin-top: 10px; line-height: 1.8; max-width: 1020px; }
+  h2 { font-size: 15px; margin: 20px 0 12px; color: var(--gold); letter-spacing: 1px; }
+  .hero-row { display: flex; gap: 30px; align-items: flex-start; flex-wrap: wrap; margin-top: 26px; }
+
+  /* ---------- 舞台：3D 倾斜 ---------- */
+  .stage {
+    width: 340px;
+    height: 430px;
+    border-radius: 16px;
+    background: radial-gradient(ellipse at 50% 42%, #1d2434 0%, #0f1219 78%);
+    border: 1px solid var(--border);
+    perspective: 900px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .m3d {
+    transform-style: preserve-3d;
+    transform: rotateX(var(--rx)) rotateY(var(--ry));
+    transition: transform 0.08s linear;
+  }
+
+  /* ---------- 怪物卡：材质 + 白边 + 3D 厚度 ---------- */
+  .m-card {
+    position: relative;
+    width: 255px;
+    height: 340px;
+    border-radius: 16px;
+    border: 2px solid transparent;
+    background: var(--body-bg);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 16px;
+    isolation: isolate;
+    /* 厚度：卡后侧边层（::before）露出右下偏移，模拟卡牌侧面 */
+    box-shadow:
+      calc(var(--thick) * 1px) calc(var(--thick) * 1.5px) 0 rgba(0,0,0,0.42),
+      calc(var(--thick) * 0.5px) calc(var(--thick) * 2px) 0 rgba(0,0,0,0.26),
+      0 28px 52px rgba(0,0,0,0.58);
+  }
+  .m-card::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: 16px;
+    background: linear-gradient(135deg, rgba(255,255,255,0.10), rgba(0,0,0,0.55) 55%);
+    transform: translate(calc(var(--thick) * 1px), calc(var(--thick) * 1.5px));
+    z-index: -1;
+  }
+  /* 材质层（复用 monster demo / 卡牌同一套定义） */
+  .mat-frame {
+    position: absolute;
+    inset: -4px;
+    border-radius: 20px;
+    background: var(--frame-bg);
+    overflow: hidden;
+    z-index: 1;
+    pointer-events: none;
+    /* 只显示边框环（content-box 与全图异或）：中心透明，不遮卡面 */
+    padding: 4px;
+    -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+    -webkit-mask-composite: xor;
+    mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+    mask-composite: exclude;
+  }
+  .glow {
+    position: absolute;
+    inset: -8px;
+    border-radius: 22px;
+    background: var(--glow-bg);
+    filter: blur(9px);
+    z-index: -2;
+    pointer-events: none;
+  }
+  .gloss {
+    position: absolute;
+    inset: 0;
+    border-radius: 14px;
+    background: radial-gradient(ellipse 95% 72% at 50% 8%,
+      rgba(255,255,255,var(--gloss-a)) 0%, rgba(255,255,255,0) 55%);
+    pointer-events: none;
+    z-index: 0;
+  }
+  .sheen-band {
+    position: absolute;
+    inset: 0;
+    border-radius: 14px;
+    overflow: hidden;
+    pointer-events: none;
+    z-index: 0;
+    opacity: 0;
+  }
+  .mat-foil .sheen-band { opacity: 1; }
+  .strip {
+    position: absolute;
+    top: -18%; bottom: -18%;
+    left: 0;
+    width: 36%;
+    animation: sweep 2.6s ease-in-out infinite;
+  }
+  .strip-in {
+    width: 100%; height: 100%;
+    background: linear-gradient(115deg, transparent 0%, rgba(255,255,255,0.55) 50%, transparent 100%);
+    transform: skewX(-18deg);
+  }
+  @keyframes sweep {
+    0%, 55% { transform: translateX(-190%); }
+    100% { transform: translateX(540%); }
+  }
+
+  /* 怪物形象：8 方向 drop-shadow = 粗细一致的白边（PNG 图同样适用） */
+  .m-art {
+    font-size: 108px;
+    line-height: 1;
+    z-index: 5;
+    filter:
+      drop-shadow(calc(var(--stroke) * 1.2px) 0 0 rgba(255,255,255,0.95))
+      drop-shadow(calc(var(--stroke) * -1.2px) 0 0 rgba(255,255,255,0.95))
+      drop-shadow(0 calc(var(--stroke) * 1.2px) 0 rgba(255,255,255,0.95))
+      drop-shadow(0 calc(var(--stroke) * -1.2px) 0 rgba(255,255,255,0.95))
+      drop-shadow(calc(var(--stroke) * 1.2px) calc(var(--stroke) * 1.2px) 0 rgba(255,255,255,0.95))
+      drop-shadow(calc(var(--stroke) * -1.2px) calc(var(--stroke) * 1.2px) 0 rgba(255,255,255,0.95))
+      drop-shadow(calc(var(--stroke) * 1.2px) calc(var(--stroke) * -1.2px) 0 rgba(255,255,255,0.95))
+      drop-shadow(calc(var(--stroke) * -1.2px) calc(var(--stroke) * -1.2px) 0 rgba(255,255,255,0.95));
+  }
+  .m-name {
+    z-index: 5;
+    font-size: 17px;
+    font-weight: bold;
+    color: var(--text);
+    text-shadow: 0 2px 6px rgba(0,0,0,0.8);
+  }
+
+  /* ===== 贴纸模式（异形卡）：白边即卡缘，卡型随怪物轮廓 ===== */
+  .m-card.sticker {
+    width: auto;
+    height: auto;
+    background: transparent;
+    border: none;
+    border-radius: 0;
+    box-shadow: none;
+    padding: 30px 36px 8px;
+    overflow: visible;
+    gap: 10px;
+  }
+  .m-card.sticker::before { display: none; }
+  .m-card.sticker .mat-frame,
+  .m-card.sticker .gloss,
+  .m-card.sticker .sheen-band,
+  .m-card.sticker .glow { display: none; }
+  .m-card.sticker .m-art {
+    font-size: 150px;
+    /* 描边已预烘焙进 canvas（bakeSticker）：运行时零滤镜 */
+    filter: none;
+  }
+  .m-card.sticker .m-art canvas {
+    width: 150px;
+    height: 150px;
+    display: block;
+  }
+  .m-card.sticker .m-name { margin-top: 4px; }
+
+  /* ---------- 8 种材质（与卡牌共用同一套变量） ---------- */
+  .mat-cloth {
+    --frame-bg: linear-gradient(180deg, #3a4254, #262c3a);
+    --body-bg:
+      repeating-linear-gradient(0deg, rgba(255,255,255,0.014) 0 1px, transparent 1px 3px),
+      linear-gradient(160deg, #2b3140 0%, #1d2330 62%, #161a24 100%);
+    --gloss-a: 0.12;
+    --glow-bg: radial-gradient(ellipse, rgba(43,50,69,0.8), transparent 70%);
+    --mat-edge: #7b8799;
+  }
+  .mat-silver {
+    --frame-bg: linear-gradient(160deg, #e2e8f2 0%, #9aa3b5 40%, #46536f 95%);
+    --body-bg: linear-gradient(160deg, #39414f 0%, #222838 62%, #171b25 100%);
+    --gloss-a: 0.35;
+    --glow-bg: radial-gradient(ellipse, rgba(154,163,181,0.55), transparent 70%);
+    --mat-edge: #d8e0ec;
+  }
+  .mat-alloy {
+    --frame-bg: linear-gradient(160deg, #c3baf5 0%, #7b6fd0 45%, #3a3165 100%);
+    --body-bg: linear-gradient(160deg, #37314a 0%, #242034 62%, #17131f 100%);
+    --gloss-a: 0.30;
+    --glow-bg: radial-gradient(ellipse, rgba(122,111,208,0.55), transparent 70%);
+    --mat-edge: #a99ef0;
+  }
+  .mat-gold {
+    --frame-bg: linear-gradient(150deg, #ffe9b0 0%, #f0d98a 28%, #b8953a 60%, #6e561d 100%);
+    --body-bg: linear-gradient(160deg, #4a3d1e 0%, #2d2413 55%, #1d180d 100%);
+    --gloss-a: 0.45;
+    --glow-bg: radial-gradient(ellipse, rgba(240,217,138,0.5), transparent 70%);
+    --mat-edge: #f0c95a;
+  }
+  .mat-foil {
+    --frame-bg: conic-gradient(from 0deg, #f0d98a, #e06a5a, #8a5fc0, #4f7fc4, #8fe0a8, #f0d98a);
+    --body-bg: linear-gradient(160deg, #33303e 0%, #232030 62%, #16141c 100%);
+    --gloss-a: 0.32;
+    --glow-bg: radial-gradient(ellipse, rgba(214,170,220,0.45), transparent 70%);
+    --mat-edge: #d6a0e8;
+  }
+  .mat-foil .mat-frame { background: transparent; }
+  .mat-foil .mat-frame::before {
+    content: "";
+    position: absolute;
+    inset: -100%;
+    background: conic-gradient(from 0deg, #f0d98a, #e06a5a, #8a5fc0, #4f7fc4, #8fe0a8, #f0d98a);
+    animation: foil-rotate 7s linear infinite;
+  }
+  .mat-glass {
+    --frame-bg: linear-gradient(160deg, rgba(255,255,255,0.55), rgba(255,255,255,0.10));
+    --body-bg: linear-gradient(160deg, rgba(255,255,255,0.13), rgba(255,255,255,0.04));
+    --gloss-a: 0.55;
+    --glow-bg: radial-gradient(ellipse, rgba(160,190,255,0.25), transparent 70%);
+    --mat-edge: #cfe4ff;
+    backdrop-filter: blur(7px);
+    -webkit-backdrop-filter: blur(7px);
+  }
+  .mat-pearl {
+    --frame-bg: linear-gradient(150deg, #fff6e8 0%, #e8c8c0 35%, #c0b8d8 70%, #a8c0d8 100%);
+    --body-bg:
+      conic-gradient(from 210deg at 55% 35%, #f3e6d6, #dcc0cc, #bcc8e0, #e2ccb4, #f3e6d6),
+      linear-gradient(160deg, #ddd0c4 0%, #c8b8b8 60%, #b0a8c0 100%);
+    --gloss-a: 0.50;
+    --glow-bg: radial-gradient(ellipse, rgba(240,220,200,0.45), transparent 70%);
+    --mat-edge: #f3e0d0;
+  }
+  .mat-oil {
+    --frame-bg: conic-gradient(from 90deg, #d8b0f0, #6aa0e8, #6ad8a8, #f0d86a, #f090a0, #d8b0f0);
+    --body-bg: linear-gradient(160deg, #181a22 0%, #12141a 70%, #0d0f14 100%);
+    --gloss-a: 0.25;
+    --glow-bg: radial-gradient(ellipse, rgba(140,150,220,0.4), transparent 70%);
+    --mat-edge: #8aa8e8;
+  }
+  @keyframes foil-rotate { to { transform: rotate(360deg); } }
+
+  /* ---------- 控制区 ---------- */
+  .controls { width: 310px; }
+  .btn-row { display: flex; flex-wrap: wrap; gap: 8px; }
+  .btn {
+    font-family: inherit; font-size: 12px; cursor: pointer;
+    padding: 7px 12px; border-radius: 7px;
+    color: var(--text-dim);
+    background: var(--panel-2);
+    border: 1px solid var(--border);
+    transition: all 0.12s ease;
+  }
+  .btn:hover { color: var(--text); border-color: var(--silver); }
+  .btn.active {
+    color: #1b160a; font-weight: bold;
+    background: linear-gradient(180deg, var(--gold-bright), var(--gold) 45%, #b8953a);
+    border-color: var(--gold-bright);
+  }
+  .controls label {
+    display: flex; align-items: center; justify-content: space-between;
+    gap: 12px; font-size: 12px; color: var(--text-dim); margin-bottom: 9px;
+  }
+  .controls label.check { justify-content: flex-start; gap: 8px; }
+  .controls input[type="range"] { flex: 1; accent-color: var(--gold); }
+  .controls label span.val { width: 48px; text-align: right; color: var(--gold); font-size: 11px; }
+  .hint { font-size: 11px; color: var(--text-faint); line-height: 1.7; margin-top: 4px; }
+
+  /* ---------- 参考条 ---------- */
+  .ref-strip { margin-top: 44px; }
+  .strip-row { display: flex; gap: 14px; flex-wrap: wrap; margin-top: 4px; }
+  .mini { width: 96px; cursor: pointer; text-align: center; }
+  .mini .m-card { width: 88px; height: 118px; border-radius: 10px; gap: 6px; }
+  .mini .m-card.sticker { width: auto; height: auto; padding: 6px; }
+  .mini .m-card.sticker .glow { inset: -16px; opacity: 0.6; }
+  .mini .m-art { font-size: 40px; --stroke: 2; }
+  /* mini 小图不叠滤镜（零开销），仅靠材质光晕区分 */
+  .mini .m-card.sticker .m-art { filter: none; }
+  .mini .m-name { font-size: 11px; }
+  .mini:hover .m-card { outline: 2px solid var(--gold-bright); outline-offset: 3px; }
+  .mini .m-card::before { display: none; }
+  .mini .m-card.sticker { box-shadow: none; }
+  .mini .m-card { box-shadow: 0 8px 18px rgba(0,0,0,0.5); }
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { animation: none !important; transition: none !important; }
+  }
+</style>
+</head>
+<body>
+  <h1>怪物卡片测试<small>白边贴纸 + 3D 厚度 + 卡牌材质（emoji 占位，未来换 PNG）</small></h1>
+  <p class="sub">
+    目标效果：怪物 = 一张有均匀<b>白边</b>的图，<b>白边就是卡片的边缘</b>——
+    卡型跟随怪物轮廓（被剪裁过的异形卡），不是圆角矩形。贴纸 = <b>图片层 + 材质层</b>：
+    怪物图（透明底 PNG / emoji）印在<b>材质包边</b>上（贴纸边缘一圈材质色，
+    白边在材质外），材质可见且不出白边；不做厚度画法（pokemon-cards-css
+    亦无实体厚度技法）。矩形卡模式才保留整卡面材质。
+    白边与材质边都用 8 方向 <code>drop-shadow</code>，粗细一致，换成真 PNG 图同样生效。
+  </p>
+
+  <div class="hero-row">
+    <div class="stage" id="stage">
+      <div class="m3d" id="m3d">
+        <div class="m-card sticker mat-foil" id="mCard">
+          <div class="mat-frame"></div>
+          <div class="glow"></div>
+          <div class="gloss"></div>
+          <div class="sheen-band"><div class="strip"><div class="strip-in"></div></div></div>
+          <div class="m-art" id="mArt">🟢</div>
+          <div class="m-name" id="mName">史莱姆</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="controls">
+      <h2>0 · 怪物（emoji 占位）</h2>
+      <div class="btn-row" id="monsterBtns"></div>
+      <p class="hint">未来把 emoji 换成带透明底的 PNG 图，白边逻辑不变。</p>
+
+      <h2>1 · 卡型</h2>
+      <div class="btn-row" id="shapeBtns">
+        <button class="btn active" data-shape="sticker">贴纸（异形卡）</button>
+        <button class="btn" data-shape="rect">矩形卡</button>
+      </div>
+      <p class="hint">贴纸模式：白边即卡缘、无厚度无越界光泽（等效贴纸）；矩形模式：圆角卡框 + 卡面材质。</p>
+
+      <h2>2 · 卡面材质</h2>
+      <div class="btn-row" id="matBtns"></div>
+
+      <h2>3 · 白边与 3D 厚度</h2>
+      <label>白边粗细 <input type="range" id="stroke" min="0" max="12" step="0.5" value="3"><span class="val" id="strokeVal">3px</span></label>
+      <label>材质包边宽（贴纸） <input type="range" id="edgeW" min="0" max="12" step="0.5" value="3"><span class="val" id="edgeWVal">3px</span></label>
+      <label>卡厚度（仅矩形卡） <input type="range" id="thick" min="0" max="26" step="1" value="10"><span class="val" id="thickVal">10px</span></label>
+      <label class="check"><input type="checkbox" id="tiltToggle" checked> 跟随鼠标 3D 倾斜</label>
+      <label class="check"><input type="checkbox" id="autoRotate"> 鼠标离开后自动旋转</label>
+      <label>倾斜幅度 <input type="range" id="tiltAmt" min="4" max="28" step="1" value="14"><span class="val" id="tiltAmtVal">14°</span></label>
+    </div>
+  </div>
+
+  <section class="ref-strip">
+    <h2>3 · 参考条（点任意一张切到主舞台）</h2>
+    <div class="strip-row" id="stripRow"></div>
+  </section>
+
+<script>
+  // ================= 怪物数据（与 src/data/enemies.ts 一致） =================
+  const MONSTERS = [
+    { id: "slime", name: "史莱姆", art: "🟢" },
+    { id: "mushroom", name: "蘑菇", art: "🍄" },
+    { id: "wolf", name: "野狼", art: "🐺" },
+    { id: "ninja", name: "忍者", art: "🥷" },
+    { id: "oni", name: "鬼面", art: "👺" },
+    { id: "frog", name: "毒蛙", art: "🐸" },
+    { id: "golem", name: "石像", art: "🗿" },
+    { id: "robot", name: "机关", art: "🤖" },
+    { id: "dragon", name: "巨龙", art: "🐉" },
+    { id: "mist", name: "雾灵", art: "🌫️" },
+    { id: "boar", name: "野猪", art: "🐗" },
+    { id: "demon", name: "恶魔", art: "👹" },
+    { id: "crab", name: "帝皇蟹", art: "🦀" },
+    { id: "queen", name: "女王", art: "👸" },
+    { id: "mutant", name: "实验体", art: "🧬" },
+  ];
+  const MATS = [
+    { id: "cloth", label: "粗布" },
+    { id: "silver", label: "银" },
+    { id: "alloy", label: "合金" },
+    { id: "gold", label: "金" },
+    { id: "foil", label: "闪卡" },
+    { id: "glass", label: "玻璃" },
+    { id: "pearl", label: "珠光" },
+    { id: "oil", label: "油膜" },
+  ];
+
+  const mCard = document.getElementById("mCard");
+  const mArt = document.getElementById("mArt");
+  const mName = document.getElementById("mName");
+  const rootStyle = document.documentElement.style;
+  let currentShape = "sticker";
+  let currentEmoji = "🟢";
+
+  // ============ 贴纸预烘焙：把 emoji + 材质边 + 白边一次性画进 canvas ============
+  // 运行时倾斜只挪 canvas 纹理，零滤镜重算（与卡牌工作台同原理）。
+  function bakeSticker() {
+    // 异步 + 异常兜底：真机上 Canvas 2D filter 是软件渲染，
+    // 若烘焙失败/过慢，直接回退 emoji 文本，绝不阻塞页面。
+    try {
+      const S = 256;
+      const c = document.createElement("canvas");
+      c.width = S;
+      c.height = S;
+      const ctx = c.getContext("2d");
+      const stroke = parseFloat(document.getElementById("stroke").value);
+      const edge = parseFloat(document.getElementById("edgeW").value);
+      const edgeColor =
+        getComputedStyle(mCard).getPropertyValue("--mat-edge").trim() || "#9aa3b5";
+      ctx.font =
+        '150px "Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji",sans-serif';
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      // 只用 2 层模糊 drop-shadow（材质边 + 白边）：
+      // 模糊半径 = 边宽，粗细一致、性能远好于 16 层硬边
+      ctx.filter = [
+        `drop-shadow(0 0 ${(edge * 1.2).toFixed(1)}px ${edgeColor})`,
+        `drop-shadow(0 0 ${((stroke + edge) * 1.2).toFixed(1)}px rgba(255,255,255,0.95))`,
+      ].join(" ");
+      ctx.translate(S / 2, S / 2);
+      ctx.fillText(currentEmoji, 0, 0);
+      const data = ctx.getImageData(0, 0, S, S).data;
+      let opaque = 0;
+      for (let i = 3; i < data.length; i += 4) {
+        if (data[i] > 10) {
+          opaque += 1;
+          if (opaque > 40) break;
+        }
+      }
+      mArt.innerHTML = "";
+      if (opaque > 40) {
+        mArt.appendChild(c);
+      } else {
+        mArt.appendChild(document.createTextNode(currentEmoji));
+      }
+    } catch {
+      mArt.innerHTML = "";
+      mArt.appendChild(document.createTextNode(currentEmoji));
+    }
+  }
+
+  // 怪物选择
+  const monsterBtns = document.getElementById("monsterBtns");
+  for (const m of MONSTERS) {
+    const b = document.createElement("button");
+    b.className = "btn" + (m.id === "slime" ? " active" : "");
+    b.textContent = m.art + " " + m.name;
+    b.dataset.id = m.id;
+    b.addEventListener("click", () => {
+      currentEmoji = m.art;
+      mName.textContent = m.name;
+      monsterBtns.querySelectorAll(".btn").forEach((x) => x.classList.toggle("active", x === b));
+      bakeSticker();
+    });
+    monsterBtns.appendChild(b);
+  }
+
+  // 材质切换
+  const matBtns = document.getElementById("matBtns");
+  for (const m of MATS) {
+    const b = document.createElement("button");
+    b.className = "btn" + (m.id === "foil" ? " active" : "");
+    b.textContent = m.label;
+    b.dataset.mat = m.id;
+    b.addEventListener("click", () => {
+      mCard.className = "m-card" + (currentShape === "sticker" ? " sticker" : "") + " mat-" + m.id;
+      matBtns.querySelectorAll(".btn").forEach((x) => x.classList.toggle("active", x === b));
+      bakeSticker();
+    });
+    matBtns.appendChild(b);
+  }
+
+  // 卡型切换：贴纸（异形卡，白边即卡缘）/ 矩形卡
+  const thickSlider = document.getElementById("thick");
+  const edgeSlider = document.getElementById("edgeW");
+  const setThickDisabled = (disabled) => {
+    thickSlider.disabled = disabled;
+    document.getElementById("thickVal").style.opacity = disabled ? "0.4" : "1";
+  };
+  const setEdgeDisabled = (disabled) => {
+    edgeSlider.disabled = disabled;
+    document.getElementById("edgeWVal").style.opacity = disabled ? "0.4" : "1";
+  };
+  document.querySelectorAll("#shapeBtns .btn").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      currentShape = btn.dataset.shape;
+      mCard.classList.toggle("sticker", currentShape === "sticker");
+      setThickDisabled(currentShape === "sticker");
+      setEdgeDisabled(currentShape !== "sticker");
+      document.querySelectorAll("#shapeBtns .btn").forEach((x) =>
+        x.classList.toggle("active", x === btn)
+      );
+    });
+  });
+  setThickDisabled(true);
+  setEdgeDisabled(false);
+
+  // 白边 / 厚度滑杆
+  function bindSlider(id, valId, cssVar, fmt) {
+    const el = document.getElementById(id);
+    const val = document.getElementById(valId);
+    const apply = () => {
+      rootStyle.setProperty(cssVar, el.value);
+      val.textContent = fmt ? fmt(el.value) : el.value;
+    };
+    el.addEventListener("input", apply);
+    apply();
+  }
+  bindSlider("stroke", "strokeVal", "--stroke", (v) => v + "px");
+  bindSlider("edgeW", "edgeWVal", "--edge-w", (v) => v + "px");
+  bindSlider("thick", "thickVal", "--thick", (v) => v + "px");
+  document.getElementById("stroke").addEventListener("input", bakeSticker);
+  document.getElementById("edgeW").addEventListener("input", bakeSticker);
+  if (document.fonts && document.fonts.ready) {
+    // 首帧后异步烘焙，避免阻塞首屏渲染
+    void document.fonts.ready.then(() => requestAnimationFrame(bakeSticker));
+  } else {
+    requestAnimationFrame(bakeSticker);
+  }
+
+  // 3D 倾斜
+  const stage = document.getElementById("stage");
+  const m3d = document.getElementById("m3d");
+  const tiltToggle = document.getElementById("tiltToggle");
+  const autoRotate = document.getElementById("autoRotate");
+  const tiltAmt = document.getElementById("tiltAmt");
+  let maxTilt = 14;
+  let nx = 0, ny = 0, hovering = false;
+  let rx = 0, ry = 0, idleT = 0, last = performance.now();
+  stage.addEventListener("pointermove", (e) => {
+    const sr = stage.getBoundingClientRect();
+    nx = (e.clientX - sr.left) / sr.width * 2 - 1;
+    ny = (e.clientY - sr.top) / sr.height * 2 - 1;
+    hovering = true;
+  });
+  stage.addEventListener("pointerleave", () => { hovering = false; });
+  function setTilt() {
+    maxTilt = parseFloat(tiltAmt.value);
+    document.getElementById("tiltAmtVal").textContent = maxTilt + "°";
+  }
+  tiltAmt.addEventListener("input", setTilt);
+  setTilt();
+  function loop(now) {
+    const dt = Math.min(100, now - last);
+    last = now;
+    idleT += dt;
+    let trx, tryy;
+    if (hovering && tiltToggle.checked) {
+      trx = -ny * maxTilt;
+      tryy = nx * maxTilt;
+    } else if (autoRotate.checked) {
+      trx = Math.sin(idleT * 0.0006) * maxTilt * 0.4;
+      tryy = Math.cos(idleT * 0.00045) * maxTilt * 0.5;
+    } else {
+      trx = 0; tryy = 0;
+    }
+    const k = 1 - Math.exp(-dt / 150);
+    rx += (trx - rx) * k;
+    ry += (tryy - ry) * k;
+    m3d.style.setProperty("--rx", rx.toFixed(2) + "deg");
+    m3d.style.setProperty("--ry", ry.toFixed(2) + "deg");
+    requestAnimationFrame(loop);
+  }
+  requestAnimationFrame(loop);
+
+  // 参考条
+  const stripRow = document.getElementById("stripRow");
+  for (const m of MONSTERS.slice(0, 8)) {
+    const wrap = document.createElement("div");
+    wrap.className = "mini";
+    wrap.innerHTML =
+      '<div class="m-card sticker mat-foil">' +
+      '<div class="glow"></div>' +
+      '<div class="m-art">' + m.art + '</div><div class="m-name">' + m.name + "</div></div>";
+    wrap.addEventListener("click", () => {
+      currentEmoji = m.art;
+      mName.textContent = m.name;
+      bakeSticker();
+      monsterBtns.querySelectorAll(".btn").forEach((x) =>
+        x.classList.toggle("active", x.dataset.id === m.id)
+      );
+    });
+    stripRow.appendChild(wrap);
+  }
+</script>
+</body>
+</html>

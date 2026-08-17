@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>背景材质展示 · 三层纵深场景（纯前端）</title>
+<title>背景材质展示 · 舞台剧式三景别（景深 + 飘动）</title>
 <style>
   :root {
     --bg-0: #0d1017;
@@ -20,6 +20,16 @@
     --art-scale: 1;
     --art-x: 0px;
     --art-y: 0px;
+    /* 景深（三景别高斯模糊，px）：舞台剧焦点在中景；
+       默认轻景深，保证夜空星星/山体/草叶细节清晰 */
+    --blur-far: 2px;
+    --blur-mid: 0px;
+    --blur-near: 1.5px;
+    /* 飘动（中近景视差摆动）：幅度 px / 单程秒数；远景静止 */
+    --drift-mid: 8px;
+    --drift-mid-dur: 9s;
+    --drift-near: 14px;
+    --drift-near-dur: 6.5s;
   }
 
   * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -36,7 +46,10 @@
   h2 { font-size: 15px; margin: 20px 0 12px; color: var(--gold); letter-spacing: 1px; }
   .hero-row { display: flex; gap: 30px; align-items: flex-start; flex-wrap: wrap; margin-top: 26px; }
 
-  /* ---------- 三层背景舞台 ---------- */
+  /* ---------- 舞台剧三景别 ----------
+     远景 = 天幕布景（最模糊、几乎不动）
+     中景 = 表演区（焦点最清晰、轻飘动）
+     近景 = 台口剪影 + 暗角（微糊、飘动最快，前景视差最强） */
   .bg-stage {
     position: relative;
     width: 560px;
@@ -46,12 +59,33 @@
     border: 1px solid var(--border);
     box-shadow: 0 18px 44px rgba(0,0,0,0.55);
   }
-  .bg-far { position: absolute; inset: 0; }
+  @keyframes drift-x {
+    from { transform: translateX(calc(var(--amp, 8px) * -1)); }
+    to { transform: translateX(var(--amp, 8px)); }
+  }
+  .bg-far {
+    position: absolute;
+    inset: -3% -2%;
+    filter: blur(var(--blur-far, 6px));
+  }
+  .bg-far::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    /* 天幕山影 / 布景剪影：低对比剪影带 */
+    background:
+      radial-gradient(ellipse 52% 34% at 18% 78%, rgba(0,0,0,0.30), transparent 70%),
+      radial-gradient(ellipse 46% 30% at 78% 72%, rgba(0,0,0,0.26), transparent 70%),
+      radial-gradient(ellipse 60% 22% at 52% 88%, rgba(0,0,0,0.34), transparent 72%);
+  }
   .bg-mid {
     position: absolute;
-    left: 0; right: 0; bottom: 0;
+    left: -4%; right: -4%; bottom: 0;
     height: 62%;
     overflow: hidden;
+    filter: blur(var(--blur-mid, 1px));
+    --amp: var(--drift-mid, 8px);
+    animation: drift-x var(--drift-mid-dur, 9s) ease-in-out infinite alternate;
   }
   .bg-mid img {
     width: 100%;
@@ -61,9 +95,30 @@
   }
   .bg-near {
     position: absolute;
-    inset: 0;
-    box-shadow: inset 0 -30px 52px rgba(0,0,0,0.78), inset 0 14px 36px rgba(0,0,0,0.55);
+    inset: -2% -3%;
     pointer-events: none;
+    filter: blur(var(--blur-near, 3px));
+    --amp: var(--drift-near, 14px);
+    animation: drift-x var(--drift-near-dur, 6.5s) ease-in-out infinite alternate;
+    /* 舞台台口：左右垂幕 + 上下暗角 */
+    background:
+      linear-gradient(90deg, rgba(0,0,0,0.55), transparent 16%),
+      linear-gradient(270deg, rgba(0,0,0,0.55), transparent 16%),
+      linear-gradient(180deg, rgba(0,0,0,0.38), transparent 24%),
+      linear-gradient(0deg, rgba(0,0,0,0.62), transparent 30%);
+  }
+  .bg-near::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    /* 台口底部站位光：照亮表演区地面 */
+    background: radial-gradient(ellipse 70% 26% at 50% 100%, var(--near-light, rgba(255,215,150,0.16)), transparent 72%);
+  }
+  .bg-near::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    box-shadow: inset 0 -26px 48px rgba(0,0,0,0.72), inset 0 12px 32px rgba(0,0,0,0.48);
   }
   .bg-label {
     position: absolute;
@@ -79,6 +134,61 @@
   }
 
   /* ---------- 场景主题 ---------- */
+  /* ===== 夜晚 · 星火荒原（默认）：星空 → 火山 → 草地 ===== */
+  .bg-stage.night .bg-far {
+    background:
+      radial-gradient(circle 2.5px at 12% 18%, #fff, transparent 3px),
+      radial-gradient(circle 2px at 28% 34%, rgba(255,255,255,0.9), transparent 2.6px),
+      radial-gradient(circle 2.5px at 45% 12%, #fff, transparent 3px),
+      radial-gradient(circle 2px at 58% 26%, rgba(255,255,255,0.85), transparent 2.6px),
+      radial-gradient(circle 2.5px at 72% 15%, #fff, transparent 3px),
+      radial-gradient(circle 2px at 84% 30%, rgba(255,255,255,0.9), transparent 2.6px),
+      radial-gradient(circle 1.5px at 20% 48%, rgba(255,255,255,0.75), transparent 2.2px),
+      radial-gradient(circle 1.5px at 66% 42%, rgba(255,255,255,0.75), transparent 2.2px),
+      radial-gradient(circle 1.5px at 36% 62%, rgba(255,255,255,0.7), transparent 2.2px),
+      radial-gradient(circle 1.5px at 8% 68%, rgba(255,255,255,0.65), transparent 2.2px),
+      radial-gradient(circle 1.5px at 92% 55%, rgba(255,255,255,0.7), transparent 2.2px),
+      linear-gradient(180deg, #050716 0%, #0d1230 45%, #1b1740 72%, #2a1c38 100%);
+  }
+  .bg-stage.night .bg-far::before {
+    /* 银河斜带 + 月亮 */
+    background:
+      radial-gradient(circle 24px at 76% 20%, #fdf9e3 0%, #fdf9e3 32%, rgba(253,249,227,0.35) 48%, rgba(253,249,227,0.08) 68%, transparent 78%),
+      linear-gradient(118deg, transparent 34%, rgba(190,200,255,0.20) 44%, rgba(225,235,255,0.30) 50%, rgba(190,200,255,0.18) 56%, transparent 66%);
+    mix-blend-mode: screen;
+  }
+  /* 中景山体画在 ::before：换本地图片时 img 盖住它，恢复占位自动回来 */
+  .bg-mid::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+  }
+  .bg-stage.night .bg-mid {
+    background: linear-gradient(180deg, transparent 0%, #241a30 52%, #1b1424 100%);
+  }
+  .bg-stage.night .bg-mid::before {
+    clip-path: polygon(0 100%, 6% 84%, 14% 78%, 20% 82%, 30% 66%, 38% 72%, 44% 58%, 50% 42%, 58% 56%, 64% 62%, 72% 54%, 78% 60%, 86% 70%, 94% 64%, 100% 72%, 100% 100%);
+    background:
+      radial-gradient(ellipse 42% 34% at 32% 56%, rgba(215,195,255,0.14), transparent 70%),
+      radial-gradient(ellipse 22% 13% at 50% 42%, #ffc477 0%, #ff7a3d 40%, rgba(255,122,61,0) 70%),
+      linear-gradient(180deg, #4a2c50 0%, #33203e 52%, #1f1528 100%);
+  }
+  .bg-stage.night .bg-near {
+    /* 草地：弱化台口暗角，底部草坡 */
+    background:
+      linear-gradient(180deg, rgba(0,0,0,0.30), transparent 18%),
+      linear-gradient(0deg, rgba(0,0,0,0.42), transparent 34%),
+      linear-gradient(180deg, transparent 60%, #12331b 78%, #0d2715 100%);
+  }
+  .bg-stage.night .bg-near::before {
+    /* 草叶剪影 + 风吹摆动 */
+    background:
+      repeating-linear-gradient(104deg, transparent 0 10px, rgba(20,52,28,0.95) 10px 13px) 0 100% / 100% 38% no-repeat,
+      repeating-linear-gradient(76deg, transparent 0 12px, rgba(20,52,28,0.8) 12px 15px) 0 100% / 100% 31% no-repeat;
+    transform-origin: 50% 100%;
+    animation: grass-sway 3.2s ease-in-out infinite alternate;
+  }
+
   .bg-stage.act1 .bg-far {
     background: linear-gradient(180deg, #3a4656 0%, #232b38 55%, #141820 100%);
   }
@@ -86,6 +196,7 @@
     background: radial-gradient(ellipse at 50% 20%, #2e3947 0%, #1c222e 70%);
     box-shadow: 0 0 40px rgba(56,70,92,0.5);
   }
+  .bg-stage.act1 { --near-light: rgba(150,170,205,0.16); }
   .bg-stage.act2 .bg-far {
     background: linear-gradient(180deg, #27382e 0%, #1a241e 55%, #10150f 100%);
   }
@@ -93,6 +204,7 @@
     background: radial-gradient(ellipse at 50% 20%, #24402c 0%, #152216 70%);
     box-shadow: 0 0 40px rgba(48,92,64,0.45);
   }
+  .bg-stage.act2 { --near-light: rgba(130,190,140,0.14); }
   .bg-stage.act3 .bg-far {
     background: linear-gradient(180deg, #4a241f 0%, #2c1412 55%, #160a09 100%);
   }
@@ -101,6 +213,7 @@
     box-shadow: 0 0 46px rgba(224,106,90,0.35);
     animation: lava-glow 3s ease-in-out infinite alternate;
   }
+  .bg-stage.act3 { --near-light: rgba(255,150,110,0.18); }
   .bg-stage.nebula .bg-far {
     background:
       radial-gradient(circle 1.5px at 18% 28%, rgba(255,255,255,0.9), transparent 2px),
@@ -118,6 +231,7 @@
       #171235;
     animation: nebula-glow 8s ease-in-out infinite alternate;
   }
+  .bg-stage.nebula { --near-light: rgba(160,130,255,0.16); }
   .bg-stage.marble .bg-far {
     background: linear-gradient(180deg, #e8e4da 0%, #b8b0a0 55%, #7d7668 100%);
   }
@@ -128,6 +242,7 @@
       radial-gradient(ellipse 70% 50% at 45% 80%, rgba(180,170,150,0.5), transparent 70%),
       linear-gradient(160deg, #cfc7b8 0%, #a89f8e 70%, #8a8172 100%);
   }
+  .bg-stage.marble { --near-light: rgba(255,235,190,0.18); }
   .bg-stage.marble .bg-label { color: #3d362d; background: rgba(255,255,255,0.5); text-shadow: none; }
 
   @keyframes lava-glow {
@@ -137,6 +252,21 @@
   @keyframes nebula-glow {
     from { filter: brightness(0.9) saturate(1); }
     to { filter: brightness(1.2) saturate(1.25); }
+  }
+  @keyframes grass-sway {
+    from { transform: skewX(-2.5deg); }
+    to { transform: skewX(2.5deg); }
+  }
+  /* 飘动总开关：body.no-drift 时静止（方便对比景深） */
+  body.no-drift .bg-mid,
+  body.no-drift .bg-near {
+    animation: none;
+  }
+  /* 主题参考条：静态预览，不飘动不模糊动画 */
+  .mini .bg-stage .bg-mid,
+  .mini .bg-stage .bg-near,
+  .mini .bg-stage .bg-near::before {
+    animation: none;
   }
 
   /* ---------- 控制区 ---------- */
@@ -162,6 +292,7 @@
     display: flex; align-items: center; justify-content: space-between;
     gap: 12px; font-size: 12px; color: var(--text-dim); margin-bottom: 9px;
   }
+  .controls label.check { justify-content: flex-start; gap: 8px; }
   .controls input[type="range"] { flex: 1; accent-color: var(--gold); }
   .controls label span.val { width: 52px; text-align: right; color: var(--gold); font-size: 11px; }
   #resetArtPosBtn { width: 100%; margin-top: 2px; }
@@ -185,18 +316,20 @@
 </head>
 <body>
 
-  <h1>背景材质展示<small>三层纵深场景 · 纯 HTML + CSS + JS</small></h1>
+  <h1>背景材质展示<small>舞台剧式三景别 · 景深高斯模糊 + 中近景飘动</small></h1>
   <p class="sub">
-    远景（雾/剪影）→ 中景（场景地面）→ 近景（暗角）三层叠加营造纵深。
-    中景可以换成电脑上的实际图片测试；场景主题用 CSS 渐变/光晕模拟，楼层换主题时改一处 class 即可。
+    舞台剧做法：<b>远景 = 天幕布景</b>（最糊、静止）→ <b>中景 = 表演区</b>（焦点最清晰、轻飘动）
+    → <b>近景 = 台口剪影</b>（微糊、飘动最快）。三景别各自独立的高斯模糊模拟景深，
+    中近景缓慢视差摆动。默认主题「星火荒原」：夜空星空 → 火山群 → 前草地；
+    中景可以换成电脑上的实际图片测试，其余主题用 CSS 渐变/光晕模拟。
   </p>
 
   <div class="hero-row">
-    <div class="bg-stage act1" id="bgStage">
+    <div class="bg-stage night" id="bgStage">
       <div class="bg-far"></div>
       <div class="bg-mid" id="bgMid"></div>
       <div class="bg-near"></div>
-      <span class="bg-label" id="bgLabel">第 1 层 · 冷灰地牢</span>
+      <span class="bg-label" id="bgLabel">夜晚 · 星火荒原</span>
     </div>
 
     <div class="controls">
@@ -212,20 +345,37 @@
       <p class="hint" id="artStatus">当前中景：CSS 场景占位</p>
       <input type="file" id="imageInput" accept="image/*" hidden />
 
-      <h2>1 · 场景主题</h2>
+      <h2>1 · 景深与飘动（舞台剧）</h2>
+      <label class="check"><input type="checkbox" id="driftToggle" checked> 中近景飘动</label>
+      <div class="theme-btns" id="dofBtns">
+        <button class="mat-btn active" data-dof="stage">舞台浅景深</button>
+        <button class="mat-btn" data-dof="soft">微景深</button>
+        <button class="mat-btn" data-dof="sharp">全清晰</button>
+      </div>
+      <label>远景模糊 <input type="range" id="blurFar" min="0" max="16" step="0.5" value="2"><span class="val" id="blurFarVal"></span></label>
+      <label>中景模糊（焦点） <input type="range" id="blurMid" min="0" max="16" step="0.5" value="0"><span class="val" id="blurMidVal"></span></label>
+      <label>近景模糊 <input type="range" id="blurNear" min="0" max="16" step="0.5" value="1.5"><span class="val" id="blurNearVal"></span></label>
+      <label>中景飘动幅度 <input type="range" id="driftMid" min="0" max="30" step="1" value="8"><span class="val" id="driftMidVal"></span></label>
+      <label>中景飘动速度（秒/来回） <input type="range" id="driftMidDur" min="3" max="20" step="0.5" value="9"><span class="val" id="driftMidDurVal"></span></label>
+      <label>近景飘动幅度 <input type="range" id="driftNear" min="0" max="40" step="1" value="14"><span class="val" id="driftNearVal"></span></label>
+      <label>近景飘动速度（秒/来回） <input type="range" id="driftNearDur" min="3" max="16" step="0.5" value="6.5"><span class="val" id="driftNearDurVal"></span></label>
+      <p class="hint">焦点默认在中景（表演区）：远景最糊、中景清晰、近景轻微糊；三档预设一键切换，也可逐项微调。</p>
+
+      <h2>2 · 场景主题</h2>
       <div class="theme-btns" id="themeBtns">
-        <button class="mat-btn active" data-theme="act1">地牢</button>
+        <button class="mat-btn active" data-theme="night">星火荒原</button>
+        <button class="mat-btn" data-theme="act1">地牢</button>
         <button class="mat-btn" data-theme="act2">沼泽</button>
         <button class="mat-btn" data-theme="act3">熔岩</button>
         <button class="mat-btn" data-theme="nebula">星云</button>
         <button class="mat-btn" data-theme="marble">大理石</button>
       </div>
-      <p class="hint">换主题只切 .bg-stage 上的 class；熔岩与星云带慢速光晕动画。</p>
+      <p class="hint">换主题只切 .bg-stage 上的 class；星火荒原为中近景飘动 + 草叶摆动，熔岩与星云带慢速光晕动画。</p>
     </div>
   </div>
 
   <section class="ref-strip">
-    <h2>2 · 主题参考条</h2>
+    <h2>3 · 主题参考条</h2>
     <p class="sub">点任意小场景，把它切到主舞台；也可再叠加本地图片做中景。</p>
     <div class="strip-row" id="stripRow"></div>
   </section>
@@ -236,8 +386,56 @@
   </footer>
 
 <script>
+  // ================= 景深与飘动（舞台剧三景别） =================
+  const rootStyle = document.documentElement.style;
+  function bindSlider(id, valId, cssVar, fmt) {
+    const el = document.getElementById(id);
+    const val = document.getElementById(valId);
+    const apply = () => {
+      rootStyle.setProperty(cssVar, fmt ? fmt(el.value) : el.value);
+      val.textContent = fmt ? fmt(el.value) : el.value;
+    };
+    el.addEventListener("input", apply);
+    apply();
+  }
+  bindSlider("blurFar", "blurFarVal", "--blur-far", (v) => v + "px");
+  bindSlider("blurMid", "blurMidVal", "--blur-mid", (v) => v + "px");
+  bindSlider("blurNear", "blurNearVal", "--blur-near", (v) => v + "px");
+  bindSlider("driftMid", "driftMidVal", "--drift-mid", (v) => v + "px");
+  bindSlider("driftMidDur", "driftMidDurVal", "--drift-mid-dur", (v) => v + "s");
+  bindSlider("driftNear", "driftNearVal", "--drift-near", (v) => v + "px");
+  bindSlider("driftNearDur", "driftNearDurVal", "--drift-near-dur", (v) => v + "s");
+
+  document.getElementById("driftToggle").addEventListener("change", (e) => {
+    document.body.classList.toggle("no-drift", !e.target.checked);
+  });
+
+  // 景深预设：舞台浅景深（默认） / 微景深 / 全清晰
+  const DOF_PRESETS = {
+    stage: { blurFar: 2, blurMid: 0, blurNear: 1.5 },
+    soft: { blurFar: 4, blurMid: 0, blurNear: 2 },
+    sharp: { blurFar: 0, blurMid: 0, blurNear: 0 },
+  };
+  document.querySelectorAll("#dofBtns .mat-btn").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const p = DOF_PRESETS[btn.dataset.dof];
+      const set = (id, v) => {
+        const el = document.getElementById(id);
+        el.value = v;
+        el.dispatchEvent(new Event("input"));
+      };
+      set("blurFar", p.blurFar);
+      set("blurMid", p.blurMid);
+      set("blurNear", p.blurNear);
+      document.querySelectorAll("#dofBtns .mat-btn").forEach((b) =>
+        b.classList.toggle("active", b === btn)
+      );
+    });
+  });
+
   // ================= 场景主题 =================
   const THEMES = {
+    night: "夜晚 · 星火荒原",
     act1: "第 1 层 · 冷灰地牢",
     act2: "第 2 层 · 暗绿沼泽",
     act3: "第 3 层 · 红黑熔岩",
@@ -247,7 +445,7 @@
   const bgStage = document.getElementById("bgStage");
   const bgMid = document.getElementById("bgMid");
   const bgLabel = document.getElementById("bgLabel");
-  let currentTheme = "act1";
+  let currentTheme = "night";
 
   function applyTheme(name) {
     currentTheme = name;
@@ -326,6 +524,7 @@
     stripRow.appendChild(wrap);
   }
 
+  applyTheme(currentTheme);
   resetArtTransform();
 </script>
 </body>

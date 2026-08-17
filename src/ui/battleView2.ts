@@ -24,6 +24,7 @@ interface BattleState {
   selectedCardId: string | null;
   hoveredCardId: string | null;
   prevHp: Record<string, number>;
+  prevPlayerHp?: number;
   prevHand: string[];
   prevPileCounts: Record<string, number>;
   pileButtons: Partial<Record<"draw" | "discard" | "exhaust" | "removed", HTMLElement>>;
@@ -101,6 +102,8 @@ export function renderBattle(
         (state.game.db.cards[state.selectedCardId]?.target === "enemy" ||
           state.game.db.cards[state.selectedCardId]?.target === "allEnemies");
       const cardEl = renderEnemyCard(enemy, intent, {
+        // 平面卡材质：Boss 用闪卡（foil），其余用合金；与卡牌材质同语言。
+        material: state.game.db.enemies[enemy.id]?.isBoss ? "foil" : "alloy",
         highlight: isTarget,
         onClick: () => {
           if (!state.selectedCardId || state.animating) return;
@@ -108,18 +111,12 @@ export function renderBattle(
             combat.getCardId(state.selectedCardId)
           ];
           if (!card) return;
-          // 单目标卡打出：手牌飞向对应牌堆。
+          // 单目标卡打出：手牌飞向目标怪物卡，模拟攻击。
           const handCardEl = [...handZone.children].find(
             (c) =>
               c instanceof HTMLElement && c.dataset.uid === state.selectedCardId
           );
-          const kind =
-            card.type === "power"
-              ? "removed"
-              : card.exhaust
-                ? "exhaust"
-                : "discard";
-          const target = state.pileStacks[kind];
+          const target = cardEl;
           let dx = 0;
           let dy = 0;
           if (handCardEl && target) {
@@ -213,6 +210,21 @@ export function renderBattle(
         : el("span")
     );
     attachTooltip(resourceRow.children[0] as HTMLElement, "星辰：储君的资源，供星辰卡牌消耗");
+
+    // 玩家受击：生命下降时玩家面板抖动。
+    const prevPlayerHp = state.prevPlayerHp ?? snap.player.maxHp;
+    if (snap.player.hp < prevPlayerHp) {
+      playerPanel.animate(
+        [
+          { transform: "translateX(0)" },
+          { transform: "translateX(-7px)" },
+          { transform: "translateX(6px)" },
+          { transform: "translateX(0)" },
+        ],
+        { duration: 260, easing: "ease-out" }
+      );
+    }
+    state.prevPlayerHp = snap.player.hp;
     attachTooltip(resourceRow.children[1] as HTMLElement, "灵魂：亡灵契约师的资源，供灵魂卡牌消耗");
     if (snap.player.focus > 0) {
       attachTooltip(
@@ -484,15 +496,14 @@ export function renderBattle(
               state.selectedCardId = uid;
               refreshSelection();
             } else {
-              // 打出：手牌飞向弃牌/消耗/移除堆。
+              // 打出：攻击全体飞向敌人区、对自身飞向玩家面板、能力牌进移除堆。
               state.animating = true;
-              const kind =
-                card.type === "power"
-                  ? "removed"
-                  : card.exhaust
-                    ? "exhaust"
-                    : "discard";
-              const target = state.pileStacks[kind];
+              const target =
+                card.target === "allEnemies"
+                  ? enemyZone
+                  : card.type === "power"
+                    ? state.pileStacks.removed ?? playerPanel
+                    : playerPanel;
               let dx = 0;
               let dy = 0;
               if (target) {
